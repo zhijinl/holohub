@@ -50,3 +50,9 @@ OHIF and 3D Slicer.
 
 
 ## Installation
+
+Build image:
+./dev_container build --docker_file applications/cbct_recon/Dockerfile --img holohub-cbct-recon:latest
+
+Launch image:
+./dev_container launch --img holohub-cbct-recon

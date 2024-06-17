@@ -62,3 +62,9 @@ RUN cd /astra-toolbox/build/linux/ && ./autogen.sh && ./configure --with-cuda=/u
     make && make install
 
 RUN echo 'alias ll="ls -lah --color"' >> ~/.bashrc
+
+RUN cd /tmp && wget https://developer.download.nvidia.cn/compute/redist/jp/v60dp/pytorch/torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl
+RUN cd /tmp && pip install torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl
+
+RUN pip install git+https://github.com/ahendriksen/tomosipo@develop
+RUN pip install git+https://github.com/ahendriksen/ts_algorithms.git
