@@ -38,7 +38,11 @@ reconstruction algorithm.
 
 ### AI Denoising
 
-Mikael's models
+[Two AI denoising
+models](https://github.com/brudfors/monai-dl-cbct/tree/main) are added
+in the reconstruction pipeline:
+- A sinogram denoising model which denoise the sinogram slice by slice
+- A volumetric denoising model which denoise the reconstructed volume
 
 ### 3D Image Segmentation
 

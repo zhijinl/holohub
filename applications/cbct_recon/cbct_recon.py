@@ -7,7 +7,7 @@
 ## E-mail:   <zhijinl@nvidia.com>
 ##
 ## Started on  Mon May 13 18:04:23 2024 Zhijin Li
-## Last update Mon Jun 24 14:24:35 2024 Zhijin Li
+## Last update Wed Jul  3 12:32:07 2024 Zhijin Li
 ## ---------------------------------------------------------------------------
 
 
@@ -15,8 +15,8 @@ import os
 import torch
 import skimage
 import numpy as np
-# import tomosipo as ts
-# from ts_algorithms import fdk
+import tomosipo as ts
+from ts_algorithms import fdk
 
 from holoscan import as_tensor
 from holoscan.resources import CudaStreamPool
@@ -244,12 +244,12 @@ class FDKReconApp(Application):
       sinogram_size_z=self.kwargs('geometry')['detector_y_pixels'],
     )
 
-    denoising_sino_op = InferenceOp(
-      self,
-      name='denoising_sinogram',
-      allocator=cuda_stream_pool,
-      **self.kwargs('denoising_sinogram'),
-    )
+    # denoising_sino_op = InferenceOp(
+    #   self,
+    #   name='denoising_sinogram',
+    #   allocator=cuda_stream_pool,
+    #   **self.kwargs('denoising_sinogram'),
+    # )
 
     recon_op = FDKReconOp(
       self,
@@ -257,12 +257,12 @@ class FDKReconApp(Application):
       **self.kwargs('geometry'),
     )
 
-    denoising_volume_op = InferenceOp(
-        self,
-        name='denoising_volume',
-        allocator=cuda_stream_pool,
-        **self.kwargs('denoising_volume'),
-    )
+    # denoising_volume_op = InferenceOp(
+    #     self,
+    #     name='denoising_volume',
+    #     allocator=cuda_stream_pool,
+    #     **self.kwargs('denoising_volume'),
+    # )
 
     # Use VTK for 3D visualization
     visualizer_op = HolovizOp(
@@ -274,17 +274,17 @@ class FDKReconApp(Application):
       height=self.kwargs('geometry')['fov_y_voxels'],
     )
 
-    # self.add_flow(input_op, recon_op, {('out', 'in')})
-    # self.add_flow(recon_op, visualizer_op, {('out', 'receivers')})
-
-    self.add_flow(input_op, denoising_sino_op, {('out', 'receivers')})
-    self.add_flow(denoising_sino_op, recon_op, {('transmitter', 'in')})
+    self.add_flow(input_op, recon_op, {('out', 'in')})
     self.add_flow(recon_op, visualizer_op, {('out', 'receivers')})
+
+    # self.add_flow(input_op, denoising_sino_op, {('out', 'receivers')})
+    # self.add_flow(denoising_sino_op, recon_op, {('transmitter', 'in')})
+    # self.add_flow(recon_op, visualizer_op, {('out', 'receivers')})
 
 
 if __name__ == '__main__':
 
-  config_file = os.path.join(os.path.dirname(__file__), 'app.yaml')
+  config_file = os.path.join(os.path.dirname(__file__), 'cbct_recon.yaml')
 
   app = FDKReconApp()
   app.config(config_file)

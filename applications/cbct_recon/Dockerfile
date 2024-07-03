@@ -19,7 +19,7 @@
 ARG BASE_IMAGE
 ARG GPU_TYPE
 
-FROM ${BASE_IMAGE} as base
+FROM ${BASE_IMAGE} AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -63,8 +63,14 @@ RUN cd /astra-toolbox/build/linux/ && ./autogen.sh && ./configure --with-cuda=/u
 
 RUN echo 'alias ll="ls -lah --color"' >> ~/.bashrc
 
-RUN cd /tmp && wget https://developer.download.nvidia.cn/compute/redist/jp/v60dp/pytorch/torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl
-RUN cd /tmp && pip install torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl
 
+# Install tomosipo and ts_algorithms
 RUN pip install git+https://github.com/ahendriksen/tomosipo@develop
 RUN pip install git+https://github.com/ahendriksen/ts_algorithms.git
+
+RUN pip install scikit-image
+
+
+# Install pytorch from jetson pre-built wheels
+RUN cd /tmp && wget https://developer.download.nvidia.cn/compute/redist/jp/v60dp/pytorch/torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl
+RUN cd /tmp && pip install torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl
