@@ -16,6 +16,8 @@ You can use this viewer to visualize a segmented medical volume with a mixed rea
 
 Review the [HoloHub README document](/README.md#prerequisites) for supported platforms and software requirements.
 
+The application supports x86_64 or IGX dGPU platforms. IGX iGPU, AGX, and RHEL platforms are not fully tested at this time.
+
 #### Magic Leap 2 Device
 
 The following packages and applications are required to run remote rendering with a Magic Leap 2 device:
@@ -32,37 +34,15 @@ Refer to the Magic Leap 2 documentation for more information:
 - [Updating your device with Magic Leap Hub](https://www.magicleap.care/hc/en-us/articles/5341445649805-Updating-Your-Device);
 - [Installing `.apk` packages with Magic Leap Hub](https://developer-docs.magicleap.cloud/docs/guides/developer-tools/ml-hub/ml-hub-package-manager/)
 
-## Building the Application
+## Quick Start
 
-Run the following commands to build and enter the interactive container environment:
+Run the following command in the top-level HoloHub folder to build and run the host application:
+
 ```bash
-./dev_container build --img holohub:openxr --docker_file ./applications/volume_rendering_xr/Dockerfile # Build the dev container
-./dev_container launch --docker_opts "-v $(pwd)/tmp:/home/$(whoami)" --img holohub:openxr # Launch the container
-```
-
-Then, inside the container environment, build the application:
-```bash
-./run build volume_rendering_xr # Build the application
-```
-
-## Running the Application
-
-### Setting Up Your Device
-
-Inside the container environment, start the Windrunner OpenXR backend and generate a pairing code:
-```bash
-ml_start.sh <debug>
-ml_pair.sh
+./dev_container build_and_run volume_rendering_xr
 ```
 
 A QR code will be visible in the console log. Refer to Magic Leap 2 [Remote Rendering Setup documentation](https://developer-docs.magicleap.cloud/docs/guides/remote-rendering/remote-rendering/#:~:text=Put%20on%20the%20Magic%20Leap,headset%20by%20looking%20at%20it.&text=The%20QR%20code%20launches%20a,Click%20Continue.) to pair the host and device in preparation for remote viewing. Refer to the [Remote Viewer](#starting-the-magic-leap-2-remote-viewer) section to regenerate the QR code as needed, or to use the local debugger GUI in place of a physical device.
-
-### Launching the Application
-
-Run the following command inside the development container to start the XR volume rendering application:
-```bash
-./run launch volume_rendering_xr
-```
 
 The application supports the following hand or controller interactions by default:
 - **Translate**: Reach and grab inside the volume with your hand or with the controller trigger to move the volume.
@@ -70,18 +50,79 @@ The application supports the following hand or controller interactions by defaul
 - **Rotate**: Grab any edge of the bounding box and move your hand or controller to rotate the volume.
 - **Crop**: Grab any vertex of the bounding box and move your hand or controller to translate the cropping planes.
 
+## Advanced Setup
+
+You can use the `--dryrun` option to see the individual commands run by the quick start option above:
+```
+./dev_container build_and_run volume_rendering_xr --dryrun
+```
+
+Alternatively, follow the steps below to set up the interactive container session.
+
+### Build the Container
+
+Run the following commands to build and enter the interactive container environment:
+```bash
+./dev_container build --img holohub:volume_rendering_xr --docker_file ./applications/volume_rendering_xr/Dockerfile # Build the dev container
+./dev_container launch --img holohub:volume_rendering_xr # Launch the container
+```
+
+### Build the Application
+
+Inside the container environment, build the application:
+```bash
+./run build volume_rendering_xr # Build the application
+```
+
+### Run the Application
+
+Inside the container environment, start the application:
+```bash
+export ML_START_OPTIONS=<""/"debug"> # Defaults to "debug" to run XR device simulator GUI
+./run launch volume_rendering_xr
+```
+
+### Deploying as a Standalone Application
+
+`volume_rendering_xr` can be packaged in a self-contained release container with datasets and binaries.
+
+To build the release container:
+```bash
+# Generate HoloHub `volume_rendering_xr` installation in the "holohub/install" folder
+./dev_container launch --img holohub:volume_rendering_xr -c ./run build volume_rendering_xr --configure-args "-DCMAKE_INSTALL_PREFIX:PATH=/workspace/holohub/install"
+./dev_container launch --img holohub:volume_rendering_xr -c cmake --build ./build --target install
+
+# Copy files into a release container
+./dev_container build --img holohub:volume_rendering_xr_rel --docker_file ./applications/volume_rendering_xr/scripts/Dockerfile.rel --base_img nvcr.io/nvidia/cuda:12.4.1-runtime-ubuntu22.04
+```
+
+To run the release container, first create the container startup script:
+```bash
+docker run --rm holohub:volume_rendering_xr_rel > ./render-volume-xr
+chmod +x ./render-volume-xr
+```
+
+Then execute the script to start the Windrunner service and the app:
+```bash
+./render-volume-xr
+```
+
+For more options, e.g. list available datasets or to select a different dataset, type
+```bash
+./render-volume-xr --help
+```
+
+Options not recognized by the render-volume-xr script are forwarded to the application.
+
 ## Additional Notes
 
 ### Supported Formats
 
-The following medical dataset formats are supported:
-* [MHD](https://itk.org/Wiki/ITK/MetaIO/Documentation)
-* [NIFTI](https://nifti.nimh.nih.gov/)
-* [NRRD](https://teem.sourceforge.net/nrrd/format.html)
+This application loads static volume files from the local disk. See HoloHub [`VolumeLoaderOp`](/operators/volume_loader/README.md#supported-formats) documentation for supported volume formats and file conversion tools.
 
 ### Launch Options
 
-Use the `--extra-args` to see all options, including how to specify a different dataset or transfer function to use.
+Use the `--extra-args` to see all options, including how to specify a different dataset or configuration file to use.
 ```bash
 ./run launch volume_rendering_xr --extra_args --help
 ...
@@ -141,28 +182,57 @@ command, which will bring up a QR code that has to be scanned using the __QR Cod
 
 ### Developing with a Different OpenXR Backend
 
-The Magic Leap Remote OpenXR runtime (`windrunner`) is the default configured by
-the dev container. Other backends such as Monado are also available.
+`volume_renderer_xr` is an OpenXR compatible application. The Magic Leap Remote Rendering runtime is installed in the application container by default, but a compatible runtime can be used if appropriate to your use case. See [https://www.khronos.org/openxr/](https://www.khronos.org/openxr/) for more information on conformant OpenXR runtimes.
 
-Inside the container, set openxr_monado.json as the active runtime:
+### Volume Rendering
 
-```bash
-/workspace/holohub$ update-alternatives --config openxr1-active-runtime
+The application carries out volume rendering via the HoloHub [`volume_renderer`](../../operators/volume_renderer/) operator,
+which in turn wraps the NVIDIA [ClaraViz](https://github.com/NVIDIA/clara-viz) rendering project. ClaraViz JSON configurations provided in the [config folder](./configs/) are available for specifying default scene parameters.
 
-There are 2 choices for the alternative openxr1-active-runtime (providing /etc/xdg/openxr/1/active_runtime.json).
+See [`volume_renderer` Configuration section](../../operators/volume_renderer/README.md#configuration) for details on
+manipulating configuration values, along with [how to create a new configuration file](../../operators/volume_renderer/README.md#creating-a-configuration-file) to fit custom data.
 
-  Selection    Path                                                   Priority   Status
-------------------------------------------------------------
-  0            /opt/windrunner/lib/windrunner/openxr_windrunner.json   60        auto mode
-  1            /opt/windrunner/lib/windrunner/openxr_windrunner.json   60        manual mode
-* 2            /usr/share/openxr/1/openxr_monado.json                  50        manual mode
+### Troubleshooting
+
+Please verify that you are building from the latest HoloHub `main` branch before reviewing troubleshooting steps.
+
+```sh
+git checkout main
 ```
 
-Then start the service to run quietly in the background:
+#### Libraries are missing when building the application (Vulkan, OpenXR, etc)
 
-```bash
-/workspace/holohub$ monado-service > /dev/null 2>&1 &
+This error may indicate that you are building inside the default HoloHub container instead of the expected `volume_rendering_xr` container.
+Review the [build steps](#building-the-application) and ensure that you have launched the container with the appropriate
+`dev_container --img` option.
+
+#### Unexpected CMake errors
+
+You may need to clear your CMake build cache. See the HoloHub [Cleaning](/README.md#cleanup) section for instructions.
+
+#### "Seccomp" Errors
+
+The Magic Leap Windrunner OpenXR backend and remote rendering host application use seccomp to limit syscalls on Linux platforms.
+You can exempt individual syscalls for local development by adding them to the [application syscall whitelist](thirdparty/magicleap/seccomp_whitelist.cfg).
+
+#### Debug GUI does not appear
+
+The `./run launch volume_rendering_xr` command initializes the Magic Leap Windrunner debug GUI by default. If you do not see
+the debug GUI appear in your application, or if the application appears to stall with no further output after the pairing QR
+code appears, try any of the following:
+
+1. Manually set the `ML_START_OPTIONS` environment variable so that `run launch` initializes with the debug view:
+```sh
+export ML_START_OPTIONS="debug"
 ```
 
-NOTE: If you switch back to the Magic Leap runtime, don't forget to update the
-active runtime alternative again with update-alternatives (above).
+2. Follow [Advanced Setup Instructions](#advanced-setup) and add the `--as_root` option to launch the container with root permissions.
+```sh
+./dev_container launch --img holohub:volume_rendering_xr --as_root
+```
+
+3. Clear the build cache and any home cache folders in the HoloHub workspace.
+```sh
+./run clear_cache
+rm -rf .cache/ .cmake/ .config/ .local/
+```
