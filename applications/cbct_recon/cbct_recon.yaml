@@ -1,0 +1,99 @@
+%YAML 1.2
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+extensions:
+  # The following extensions are automatically loaded upon Python App
+  # initialization, so they do not need to be listed here.
+  # This is a difference in behavior from the C++-API which currently requires
+  # explicitly listing these.
+  # - libgxf_std.so
+  # - libgxf_cuda.so
+  # - libgxf_multimedia.so
+  # - libgxf_serialization.so
+  # - libaja_source.so
+  # - libformat_converter.so
+  # - libholoviz.so
+  # - libsegmentation_postprocessor.so
+  # - libstream_playback.so
+  # - libtensor_rt.so
+
+input:
+  sinogram_path: "test/0000_sino_low_dose.npy"
+
+geometry:
+
+  # Information on Field-of-View, aka the anatomy part that
+  # imaged by CBCT scan.
+  #
+  # FOV in x, y and z directions, in length unit / physical unit (mm)
+  fov_x_lu: 300
+  fov_y_lu: 300
+  fov_z_lu: 300
+
+  # FOV in x, y and z directions, in voxel counts
+  # This determines the size of the reconstructed volume
+  # in voxel counts
+  fov_x_voxels: 512
+  fov_y_voxels: 512
+  fov_z_voxels: 512
+
+  # Information on flat-panel detector. This info determines
+  # the size and shape of the projection / sinogram.
+  #
+  # Detector size in x and y directions in length unit /
+  # physical unit (mm)
+  detector_x_lu: 600
+  detector_y_lu: 600
+
+  # Detector size in x and y directions in pixel count
+  detector_x_pixels: 512
+  detector_y_pixels: 512
+
+  # Number of sampling angles per rotation (360 degree)
+  # Size of the sinogram (in voxels) will be equal to:
+  #    (detector_x_pixels, num_angles, detector_y_pixels)
+  num_angles: 360
+
+  # Distance from the source to the origin of rotation
+  src_orig_dist: 575
+  # Distance from the source to the detector
+  src_det_dist: 1050
+
+
+denoising_sinogram:
+  model_path_map:
+    "denoising_sino_model": "./best_metric_sino_low.pt"
+  backend: "trt" #"torch"
+  infer_on_cpu: false
+  pre_processor_map:
+    "denoising_sino_model": ["sino"]
+  inference_map:
+    "denoising_sino_model": "sino_denoised"
+  in_tensor_names: ["sino"]
+  out_tensor_names: ["sino_denoised"]
+
+
+# denoising_volume:
+#   model_path_map:
+#     "denoising_sino_model": "./best_metric_sino_low.pt"
+#   backend: "torch"
+#   infer_on_cpu: false
+#   pre_processor_map:
+#     "denoising_sino_model": ["sino"]
+#   inference_map:
+#     "denoising_sino_model": "sino_denoised"
+#   in_tensor_names: ["sino"]
+#   out_tensor_names: ["sino_denoised"]
