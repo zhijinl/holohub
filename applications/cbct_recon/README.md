@@ -33,8 +33,8 @@ Using advanced networking operator? DDS?
 ### CBCT Reconstruction
 
 A custom operator was implemented, wrapping APIs of
-[`astra-toolbox`](https://astra-toolbox.com/) to perform Feldkamp (FDK)
-reconstruction algorithm.
+[`astra-toolbox`](https://astra-toolbox.com/) to perform on-line
+Feldkamp (FDK) reconstruction algorithm.
 
 ### AI Denoising
 
@@ -50,13 +50,46 @@ MONAI Full-body CT Segmentation model.
 
 ### Visualization
 
-OHIF and 3D Slicer.
+OHIF viewer.
 
 
-## Installation
+## Build and Launch Sample Apps
 
-Build image:
-./dev_container build --docker_file applications/cbct_recon/Dockerfile --img holohub-cbct-recon:latest
+Build images:
 
-Launch image:
+1. Build docker image for reconstruction and denoising
+```
+./dev_container build --docker_file applications/cbct_recon/recon/Dockerfile --img holohub-cbct-recon:latest
+```
+
+2. Build docker image for segmentation and visualization
+```
+./dev_container build --docker_file applications/cbct_recon/vis/Dockerfile --img holohub-cbct-vis:latest
+```
+
+Run applications:
+
+1. Launch docker container for reconstruction and denoising
+```
 ./dev_container launch --img holohub-cbct-recon
+```
+
+2. Launch docker container for segmentation and visualization in a
+separate terminal
+```
+./dev_container launch --img holohub-cbct-vis
+```
+
+3. Launch reconstruction and denoising app
+```
+# In holohub-cbct-recon container
+python3 applications/cbct_recon/recon/cbct_recon.py
+```
+After this, the `holohub-cbct-vis` container will receive the
+reconstructed volume.
+
+4. Visualize and segment reconstructed volume
+
+Open browser and go to `http://127.0.0.1:8000/ohif/` to access OHIF
+viewer to visualize and segment the reconstructed volume with MONAI
+Label.
