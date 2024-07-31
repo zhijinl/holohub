@@ -1,0 +1,8 @@
+{
+  "Plugins" : ["/usr/local/share/orthanc/plugins/"],
+  "RemoteAccessAllowed" : true,
+  "AuthenticationEnabled": true,
+  "RegisteredUsers" : {"orthanc" : "orthanc"},
+  "StorageDirectory" : "/workspace/orthanc/db/",
+  "IndexDirectory" : "/workspace/orthanc/db/"
+}
