@@ -7,7 +7,7 @@
 ## E-mail:   <zhijinl@nvidia.com>
 ##
 ## Started on  Mon May 13 18:04:23 2024 Zhijin Li
-## Last update Wed Jul  3 12:32:07 2024 Zhijin Li
+## Last update Thu Aug  1 12:55:28 2024 Zhijin Li
 ## ---------------------------------------------------------------------------
 
 
@@ -28,7 +28,7 @@ from holoscan.core import Application, Operator, OperatorSpec, ConditionType
 try:
   import cupy as cp
 except ImportError:
-    raise ImportError(
+  raise ImportError(
       'CuPy must be installed to run this example. See '
       'https://docs.cupy.dev/en/stable/install.html'
     )
@@ -40,9 +40,10 @@ IMAGE_SIZE = 1024
 class InputOp(Operator):
   """
   Operator which simulates streaming of CBCT projection
-  data in sinogram format, at specific frame-rate /
-  frames-per-second.
+  data one-by-one.
 
+  The number of projection images is determined by the
+  `num_angles` property in the config file.
   """
   def __init__(
       self,
@@ -52,6 +53,7 @@ class InputOp(Operator):
       sinogram_size_x,
       sinogram_size_y,
       sinogram_size_z,
+      num_angles,
       **kwargs,
   ):
     super().__init__(fragment, *args, **kwargs)
@@ -71,9 +73,8 @@ class InputOp(Operator):
       sinogram_size_z
     )
 
-    # self.sino = torch.tensor(sino, dtype=torch.float32, device='cuda')
     self.sino = cp.asarray(sino, dtype=cp.float32)
-    self.angles = cp.linspace(0, 2*cp.pi, 360, endpoint=False)
+    self.angles = cp.linspace(0, 2*cp.pi, num_angles, endpoint=False)
     self.counter = 0
 
   def __scale_sinogram(
@@ -236,12 +237,13 @@ class FDKReconApp(Application):
     # Input operator
     input_op = InputOp(
       self,
-      CountCondition(self, 360),
+      CountCondition(self, self.kwargs('geometry')['num_angles']),
       name='input',
       sinogram_path=self.kwargs('input')['sinogram_path'],
       sinogram_size_x=self.kwargs('geometry')['detector_x_pixels'],
       sinogram_size_y=self.kwargs('geometry')['num_angles'],
       sinogram_size_z=self.kwargs('geometry')['detector_y_pixels'],
+      num_angles=self.kwargs('geometry')['num_angles'],
     )
 
     # denoising_sino_op = InferenceOp(
