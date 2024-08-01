@@ -26,70 +26,42 @@ of the following modules:
 
 Different modules are implemented as follows.
 
-### Data Streaming
-
-Using advanced networking operator? DDS?
-
-### CBCT Reconstruction
-
-A custom operator was implemented, wrapping APIs of
-[`astra-toolbox`](https://astra-toolbox.com/) to perform on-line
-Feldkamp (FDK) reconstruction algorithm.
-
-### AI Denoising
-
-[Two AI denoising
-models](https://github.com/brudfors/monai-dl-cbct/tree/main) are added
-in the reconstruction pipeline:
-- A sinogram denoising model which denoise the sinogram slice by slice
-- A volumetric denoising model which denoise the reconstructed volume
-
-### 3D Image Segmentation
-
-MONAI Full-body CT Segmentation model.
-
-### Visualization
-
-OHIF viewer.
-
+- **Data Streaming**: TODO, using advanced networking operator? DDS?
+- **CBCT Reconstruction**: A custom operator was implemented, wrapping
+  APIs of [`astra-toolbox`](https://astra-toolbox.com/) to perform
+  [FDK (Feldkamp, Davis and Kress) CBCT reconstruction
+  algorithm](https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-1-6-612&id=996). An
+  online version of the FDK algorithm was implemented, meaning that
+  the reconstruction starts as soon as the first projection images
+  arrives, and then incrementally update the reconstructed volume as
+  rest of the projection images arrives.
+  - **AI Denoising**: [Two AI denoising
+  models](https://github.com/brudfors/monai-dl-cbct/tree/main) are
+  added in the reconstruction pipeline:
+  1. A sinogram denoising model which denoise the sinogram slice by
+     slice. **NOTE: TODO, NOT FINISHED, need to train a slice-by-slice
+     model!!**
+  2. A volumetric denoising model which denoise the reconstructed
+     volume.
+- **Visualization and 3D Image Segmentation**: Orthanc was used as a
+  DICOM-web server and OHIF was used as viewer. CBCT volume
+  segmentation can be perform using MONAI Label inside OHIF
+  viewer. The [whole-body CT Segmentation
+  model](https://github.com/Project-MONAI/model-zoo/tree/dev/models/wholeBody_ct_segmentation)
+  from MONAI Model Zoo was used to segment anatomis in reconstructed
+  CBCT volumes.
 
 ## Build and Launch Sample Apps
 
-Build images:
+> **_NOTE:_**  Please build and launch the visualization app first, if
+> you want to visualize the reconstructed data in OHIF viewer and
+> perform segmentation using MONAI Label. If the visualization app is
+> not launched, the Orthanc DICOM server will not be ready, therefore
+> the reconstruction app will not be able to push the reconstructed
+> volumes to the DICOM server for OHIF to display.
 
-1. Build docker image for reconstruction and denoising
-```
-./dev_container build --docker_file applications/cbct_recon/recon/Dockerfile --img holohub-cbct-recon:latest
-```
+Please refer to the following individual sections for how to build and
+launch the reconstruction and visualization apps.
 
-2. Build docker image for segmentation and visualization
-```
-./dev_container build --docker_file applications/cbct_recon/vis/Dockerfile --img holohub-cbct-vis:latest
-```
-
-Run applications:
-
-1. Launch docker container for reconstruction and denoising
-```
-./dev_container launch --img holohub-cbct-recon
-```
-
-2. Launch docker container for segmentation and visualization in a
-separate terminal
-```
-./dev_container launch --img holohub-cbct-vis
-```
-
-3. Launch reconstruction and denoising app
-```
-# In holohub-cbct-recon container
-python3 applications/cbct_recon/recon/cbct_recon.py
-```
-After this, the `holohub-cbct-vis` container will receive the
-reconstructed volume.
-
-4. Visualize and segment reconstructed volume
-
-Open browser and go to `http://127.0.0.1:8000/ohif/` to access OHIF
-viewer to visualize and segment the reconstructed volume with MONAI
-Label.
+- [Build and launch the reconstruction app](recon/README.md)
+- [Build and launch the visualization app](vis/README.md)
