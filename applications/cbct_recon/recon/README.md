@@ -7,7 +7,8 @@ pipeline. In this part, you will be able to build a Holoscan sample
 application that performs on-line [FDK (Feldkamp, Davis and Kress)
 CBCT reconstruction
 algorithm](https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-1-6-612&id=996). Specifically,
-this app contains the following components:
+this app contains the following components (see the pipeline
+flow-chart below):
 - First, we start with a data stream component, where CBCT projection
   images will be streamed one-by-one, either from local disk, or from
   a remote machine, to where the reconstruction will be performed.
@@ -22,6 +23,9 @@ this app contains the following components:
   and then we incrementally update the volume as rest of the
   projection images arrives. In theory, such an on-line reconstruction
   can be implemented for any linear reconstruction algorithms.
+- Holoviz will be used to display the central reconstructed slice
+  from the volume, as a visual indicator of the on-line reconstruction
+  process.
 - After reconstruction, another denoising model will be applied, this
   time on the reconstructed CBCT volume.
 - Both the original and denoise 3D volumes will be pushed to the
@@ -32,6 +36,8 @@ this app contains the following components:
 > first, otherwise the Orthanc DICOM server will not be ready, therefore
 > the reconstruction app will not be able to push the reconstructed
 > volumes to the DICOM server.
+
+![Pipeline](./figs/recon-pipeline.png)
 
 ## Build and Run the App
 
@@ -62,6 +68,6 @@ this file for detailed documentation.
 When app starts to run, you will be able to visualze the on-line FDK
 reconstruction process, where the anatomical details of the central
 slice of the reconstructed volume becomes more and more clear (see
-the video below).
+the figure below).
 
-<video src="figs/fdk-recon-low.mp4" width="640" height="640" controls></video>
+![FDK recon](./figs/fdk-recon.png)

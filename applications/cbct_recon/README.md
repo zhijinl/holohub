@@ -24,6 +24,9 @@ of the following modules:
 
 ## Implementation
 
+The whole pipeline is illustrated in the figure below:
+![Pipeline](./figs/pipeline.png)
+
 Different modules are implemented as follows.
 
 - **Data Streaming**: TODO, using advanced networking operator? DDS?
@@ -35,7 +38,7 @@ Different modules are implemented as follows.
   the reconstruction starts as soon as the first projection images
   arrives, and then incrementally update the reconstructed volume as
   rest of the projection images arrives.
-  - **AI Denoising**: [Two AI denoising
+- **AI Denoising**: [Two AI denoising
   models](https://github.com/brudfors/monai-dl-cbct/tree/main) are
   added in the reconstruction pipeline:
   1. A sinogram denoising model which denoise the sinogram slice by

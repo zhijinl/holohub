@@ -46,7 +46,7 @@ for authentication are both `orthanc`, and can be changed through
 modifying the `RegisteredUsers` field in the [Orthanc config
 file](orthanc/orthanc_config.json).
 
-![Orthanc server landing page](./figs/orthanc-landing.png)
+<img src="./figs/ohif-landing.png" width="250" alt="OHIF landing"/>
 
 #### Access the OHIF viewer
 
@@ -56,8 +56,7 @@ containing CBCT volumes, if the recon app has previously sent volumes
 to Orthanc if  (see figure below). You can open a patient data and
 visualize the reconstructed volumes for further analysis.
 
-![OHIF landing page](./figs/ohif-landing.png)
-![OHIF viewer](./figs/ohif-viewer.png)
+<img src="./figs/ohif-viewer.png" width="250" alt="OHIF viewer"/>
 
 
 #### Run Automatic Segmentation
@@ -75,4 +74,4 @@ of the CBCT volumes using using the
   below). After waiting a couple of seconds, you should see the
   segmentation masks pop-up in the same viewer window.
 
-![MONAI Label](./figs/monai-label.png)
+<img src="./figs/monai-label.png" width="250" alt="MONAI Label"/>
