@@ -31,7 +31,8 @@ extensions:
   # - libtensor_rt.so
 
 input:
-  sinogram_path: "test/0000_sino_low_dose.npy"
+  # Path to a sinogram projection dataset.
+  sinogram_path: "/workspace/holohub/applications/cbct_recon/recon/data/0000_sino_low_dose.npy"
 
 geometry:
 
@@ -72,7 +73,6 @@ geometry:
   # Distance from the source to the detector
   src_det_dist: 1050
 
-
 denoising_sinogram:
   model_path_map:
     "denoising_sino_model": "./best_metric_sino_low.pt"
@@ -85,15 +85,14 @@ denoising_sinogram:
   in_tensor_names: ["sino"]
   out_tensor_names: ["sino_denoised"]
 
-
-# denoising_volume:
-#   model_path_map:
-#     "denoising_sino_model": "./best_metric_sino_low.pt"
-#   backend: "torch"
-#   infer_on_cpu: false
-#   pre_processor_map:
-#     "denoising_sino_model": ["sino"]
-#   inference_map:
-#     "denoising_sino_model": "sino_denoised"
-#   in_tensor_names: ["sino"]
-#   out_tensor_names: ["sino_denoised"]
+denoising_volume:
+  model_path_map:
+    "denoising_sino_model": "./best_metric_sino_low.pt"
+  backend: "torch"
+  infer_on_cpu: false
+  pre_processor_map:
+    "denoising_sino_model": ["sino"]
+  inference_map:
+    "denoising_sino_model": "sino_denoised"
+  in_tensor_names: ["sino"]
+  out_tensor_names: ["sino_denoised"]
