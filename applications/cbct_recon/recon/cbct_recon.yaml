@@ -96,3 +96,7 @@ denoising_volume:
     "denoising_sino_model": "sino_denoised"
   in_tensor_names: ["sino"]
   out_tensor_names: ["sino_denoised"]
+
+dicom_server:
+  ip: "127.0.0.1"
+  port: 4242

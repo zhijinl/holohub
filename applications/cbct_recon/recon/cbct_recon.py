@@ -7,34 +7,107 @@
 ## E-mail:   <zhijinl@nvidia.com>
 ##
 ## Started on  Mon May 13 18:04:23 2024 Zhijin Li
-## Last update Thu Aug  1 12:55:28 2024 Zhijin Li
+## Last update Fri Aug  2 14:28:02 2024 Zhijin Li
 ## ---------------------------------------------------------------------------
 
 
 import os
 import torch
+import random
 import skimage
 import numpy as np
 import tomosipo as ts
 from ts_algorithms import fdk
 
+import pydicom
+import pydicom._storage_sopclass_uids
+from pynetdicom import AE, debug_logger
+from pynetdicom.sop_class import CTImageStorage
+
 from holoscan import as_tensor
 from holoscan.resources import CudaStreamPool
-from holoscan.conditions import CountCondition
+from holoscan.conditions import CountCondition, BooleanCondition
 from holoscan.operators import HolovizOp, InferenceOp
 from holoscan.core import Application, Operator, OperatorSpec, ConditionType
 
 
 try:
-  import cupy as cp
+    import cupy as cp
 except ImportError:
-  raise ImportError(
-      'CuPy must be installed to run this example. See '
-      'https://docs.cupy.dev/en/stable/install.html'
+    raise ImportError(
+        "CuPy must be installed to run this example. See "
+        "https://docs.cupy.dev/en/stable/install.html"
     )
 
 
-IMAGE_SIZE = 1024
+def convert_to_dcm(
+        inp,
+        pixel_spacing_x,
+        pixel_spacing_y,
+        slice_thickness,
+):
+    dcm_ds = pydicom.Dataset()
+
+    sop_instance_uid = pydicom.uid.generate_uid()
+    dcm_ds.SOPInstanceUID = sop_instance_uid
+
+    # Meta data
+    meta_ds = pydicom.Dataset()
+    meta_ds.MediaStorageSOPClassUID = pydicom._storage_sopclass_uids.CTImageStorage
+    meta_ds.MediaStorageSOPInstanceUID = sop_instance_uid
+    meta_ds.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
+    dcm_ds.file_meta = meta_ds
+
+    # Manufacturer
+    dcm_ds.Manufacturer = 'ICASSP CBCT Recon Challenge'
+    dcm_ds.ReferringPhysicianName = 'ICASSP'
+    dcm_ds.ManufacturerModelName = 'sample'
+
+    # Patient
+    dcm_ds.PatientName = "ANON"
+    dcm_ds.PatientID = pydicom.uid.generate_uid()
+
+    # Modality
+    dcm_ds.SOPClassUID = pydicom._storage_sopclass_uids.CTImageStorage
+    dcm_ds.Modality = 'CT'
+    dcm_ds.ImageType = ['ORIGINAL', 'PRIMARY', 'AXIAL']
+
+    # Study
+    dcm_ds.StudyInstanceUID = pydicom.uid.generate_uid()
+    dcm_ds.StudyDescription = 'holoscan sample data'
+    dcm_ds.StudyDate = '19000101'                   # needed to create DICOMDIR
+    dcm_ds.StudyID = str(random.randint(0,1000))
+
+    # Series
+    dcm_ds.SeriesInstanceUID = pydicom.uid.generate_uid()
+    dcm_ds.SeriesDescription = 'holoscan sample data'
+    dcm_ds.SeriesNumber = str(random.randint(0,1000))
+
+    # Image
+    dcm_ds.Rows = inp.shape[0]
+    dcm_ds.Columns = inp.shape[1]
+    dcm_ds.NumberOfFrames = inp.shape[2]
+
+    dcm_ds.PixelSpacing = [pixel_spacing_x, pixel_spacing_y]
+    dcm_ds.SliceThickness = slice_thickness
+
+    dcm_ds.PatientPosition = 'HFS'
+    dcm_ds.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+    dcm_ds.PositionReferenceIndicator = 'SN'
+
+    dcm_ds.SamplesPerPixel = 1
+    dcm_ds.PhotometricInterpretation = 'MONOCHROME2'
+    dcm_ds.BitsAllocated = 16
+    dcm_ds.BitsStored = 16
+    dcm_ds.HighBit = 15
+
+    # Data
+    dcm_ds.PixelRepresentation = 1
+    inp = cp.asarray(inp, dtype=cp.uint16)
+    dcm_ds.PixelData = inp.tobytes()
+
+    dcm_ds.save_as('./volume.dcm', write_like_original=False)
+    return dcm_ds
 
 
 class InputOp(Operator):
@@ -97,7 +170,7 @@ class InputOp(Operator):
       )
 
   def setup(self, spec: OperatorSpec):
-    spec.output('out')
+    spec.output("out")
 
   def compute(self, op_input, op_output, context):
 
@@ -108,10 +181,10 @@ class InputOp(Operator):
 
     op_output.emit(
       {
-        'sino': sino_emit,
-        'angles': angles_emit,
+        "sino": sino_emit,
+        "angles": angles_emit,
       },
-      'out'
+      "out"
     )
 
 
@@ -173,16 +246,20 @@ class FDKReconOp(Operator):
     self.final_recon = torch.zeros(
       self.volume.shape,
       dtype=torch.float32,
-      device='cuda',
+      device="cuda",
     )
 
+    self.counter = 0
+    self.num_angles = num_angles
+
   def setup(self, spec: OperatorSpec):
-    spec.input('in')
-    spec.output('out')
+    spec.input("in")
+    spec.output("out_vis")
+    spec.output("out_recon")
 
   def create_projector(self, angles):
     proj_geometry = ts.cone(
-      angles=torch.tensor(angles, dtype=torch.float32, device='cpu'),
+      angles=torch.tensor(angles, dtype=torch.float32, device="cpu"),
       shape=self.detector_size_pixels,
       size=self.detector_size_lu,
       src_orig_dist=self.sod,
@@ -191,33 +268,119 @@ class FDKReconOp(Operator):
     return ts.operator(self.volume, proj_geometry)
 
   def compute(self, op_input, op_output, context):
-    in_message = op_input.receive('in')
+    in_message = op_input.receive("in")
 
-    sino = in_message['sino']
-    angles = in_message['angles']
+    sino = in_message["sino"]
+    angles = in_message["angles"]
 
     projector = self.create_projector(angles)
-    recon = fdk(projector, torch.tensor(sino, device='cuda'))
+    recon = fdk(projector, torch.tensor(sino, device="cuda"))
 
     self.final_recon += recon
+    self.counter += angles.shape[0]
 
-    output = torch.tensor(
-      self.final_recon[128,:,:],
-      device='cuda',
-      dtype=torch.float32
-    )
+    vis = self.final_recon[128,:,:].clone().detach()
 
-    output = (output - output.min()) / (output.max() - output.min()) * 255.0
-    output = output.squeeze(1)
-    output = output[:,:,None].repeat(1, 1, 3)
-    output = output.to(torch.uint8)
+    vis = (vis - vis.min()) / (vis.max() - vis.min()) * 255.0
+    vis = vis.squeeze(1)
+    vis = vis[:,:,None].repeat(1, 1, 3)
+    vis = vis.to(torch.uint8)
 
     op_output.emit(
-      {
-        'recon': cp.asarray(output)
-      },
-      'out'
+        {
+            "vis": cp.asarray(vis),
+        },
+        "out_vis"
     )
+
+    op_output.emit(
+        {
+            "recon": cp.asarray(self.final_recon),
+            "recon_complete": cp.asarray([int(self.counter == self.num_angles)])
+        },
+        "out_recon"
+    )
+
+
+class DICOMSenderOp(Operator):
+    """
+    Operator which handles converting CBCT volume to
+    DICOM dataset, and sending it to DICOM server.
+
+    """
+    def __init__(
+            self,
+            fragment,
+            *args,
+            ip,
+            port,
+            fov_x_lu,
+            fov_y_lu,
+            fov_z_lu,
+            fov_x_voxels,
+            fov_y_voxels,
+            fov_z_voxels,
+            **kwargs,
+    ):
+        super().__init__(fragment, *args, **kwargs)
+        self.ip = ip
+        self.port = port
+
+        self.fov_x_lu = fov_x_lu
+        self.fov_y_lu = fov_y_lu
+        self.fov_z_lu = fov_z_lu
+        self.fov_x_voxels = fov_x_voxels
+        self.fov_y_voxels = fov_y_voxels
+        self.fov_z_voxels = fov_z_voxels
+
+    def setup(self, spec: OperatorSpec):
+        spec.input("in")
+
+        # Initialise Application Entity
+        # and request CT storage
+        self.ae = AE()
+        self.ae.add_requested_context(CTImageStorage)
+
+    def send_c_store(self, dcm_dataset):
+        # Associate with DICOM server
+        assoc = self.ae.associate(self.ip, self.port)
+
+        if assoc.is_established:
+            # Use the C-STORE service to send the dataset
+            # returns the response status as a pydicom Dataset
+            status = assoc.send_c_store(dcm_dataset)
+
+            # Check the status of the storage request
+            if status:
+                # If the storage request succeeded this will be 0x0000
+                print('data sending request status: 0x{0:04x}'.format(status.Status))
+            else:
+                print('Connection timed out, was aborted or received invalid response')
+
+            # Release the association
+            assoc.release()
+        else:
+            print('Association rejected, aborted or never connected')
+
+    def compute(self, op_input, op_output, context):
+        in_message = op_input.receive("in")
+        recon_complete = in_message["recon_complete"]
+
+        if cp.asarray(recon_complete)[0]:
+            print("recon complete, sending results to DICOM server...")
+
+            pixel_spacing_x = float(self.fov_x_lu) / self.fov_x_voxels
+            pixel_spacing_y = float(self.fov_y_lu) / self.fov_y_voxels
+            slice_thickness = float(self.fov_z_lu) / self.fov_z_voxels
+
+            dcm_ds = convert_to_dcm(
+                in_message["recon"],
+                pixel_spacing_x,
+                pixel_spacing_y,
+                slice_thickness
+            )
+
+            self.send_c_store(dcm_ds)
 
 
 class FDKReconApp(Application):
@@ -237,33 +400,33 @@ class FDKReconApp(Application):
     # Input operator
     input_op = InputOp(
       self,
-      CountCondition(self, self.kwargs('geometry')['num_angles']),
-      name='input',
-      sinogram_path=self.kwargs('input')['sinogram_path'],
-      sinogram_size_x=self.kwargs('geometry')['detector_x_pixels'],
-      sinogram_size_y=self.kwargs('geometry')['num_angles'],
-      sinogram_size_z=self.kwargs('geometry')['detector_y_pixels'],
-      num_angles=self.kwargs('geometry')['num_angles'],
+      CountCondition(self, self.kwargs("geometry")["num_angles"]),
+      name="input",
+      sinogram_path=self.kwargs("input")["sinogram_path"],
+      sinogram_size_x=self.kwargs("geometry")["detector_x_pixels"],
+      sinogram_size_y=self.kwargs("geometry")["num_angles"],
+      sinogram_size_z=self.kwargs("geometry")["detector_y_pixels"],
+      num_angles=self.kwargs("geometry")["num_angles"],
     )
 
     # denoising_sino_op = InferenceOp(
     #   self,
-    #   name='denoising_sinogram',
+    #   name="denoising_sinogram",
     #   allocator=cuda_stream_pool,
-    #   **self.kwargs('denoising_sinogram'),
+    #   **self.kwargs("denoising_sinogram"),
     # )
 
     recon_op = FDKReconOp(
       self,
-      name='fdk_recon',
-      **self.kwargs('geometry'),
+      name="fdk_recon",
+      **self.kwargs("geometry"),
     )
 
     # denoising_volume_op = InferenceOp(
     #     self,
-    #     name='denoising_volume',
+    #     name="denoising_volume",
     #     allocator=cuda_stream_pool,
-    #     **self.kwargs('denoising_volume'),
+    #     **self.kwargs("denoising_volume"),
     # )
 
     # Use VTK for 3D visualization
@@ -271,22 +434,31 @@ class FDKReconApp(Application):
       self,
       name="visualizer",
       cuda_stream_pool=cuda_stream_pool,
-      tensors=[dict(name='recon', type='color')],
-      width=self.kwargs('geometry')['fov_x_voxels'],
-      height=self.kwargs('geometry')['fov_y_voxels'],
+      tensors=[dict(name="vis", type="color")],
+      width=self.kwargs("geometry")["fov_x_voxels"],
+      height=self.kwargs("geometry")["fov_y_voxels"],
     )
 
-    self.add_flow(input_op, recon_op, {('out', 'in')})
-    self.add_flow(recon_op, visualizer_op, {('out', 'receivers')})
+    # Send data to DICOM server when recon is complete
+    dcm_sender_op = DICOMSenderOp(
+        self,
+        ip=self.kwargs("dicom_server")["ip"],
+        port=self.kwargs("dicom_server")["port"],
+        **self.kwargs("geometry"),
+    )
 
-    # self.add_flow(input_op, denoising_sino_op, {('out', 'receivers')})
-    # self.add_flow(denoising_sino_op, recon_op, {('transmitter', 'in')})
-    # self.add_flow(recon_op, visualizer_op, {('out', 'receivers')})
+    self.add_flow(input_op, recon_op, {("out", "in")})
+    self.add_flow(recon_op, visualizer_op, {("out_vis", "receivers")})
+    self.add_flow(recon_op, dcm_sender_op, {("out_recon", "in")})
+
+    # self.add_flow(input_op, denoising_sino_op, {("out", "receivers")})
+    # self.add_flow(denoising_sino_op, recon_op, {("transmitter", "in")})
+    # self.add_flow(recon_op, visualizer_op, {("out", "receivers")})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-  config_file = os.path.join(os.path.dirname(__file__), 'cbct_recon.yaml')
+  config_file = os.path.join(os.path.dirname(__file__), "cbct_recon.yaml")
 
   app = FDKReconApp()
   app.config(config_file)
