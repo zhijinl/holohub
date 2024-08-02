@@ -78,3 +78,5 @@ RUN if [ "$(uname -m)" = "x86_64" ] ; then \
     cd /tmp && wget https://developer.download.nvidia.cn/compute/redist/jp/v60dp/pytorch/torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl && \
     pip install torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl; \
     fi
+
+RUN pip install pydicom pynetdicom

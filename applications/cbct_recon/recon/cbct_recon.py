@@ -7,7 +7,7 @@
 ## E-mail:   <zhijinl@nvidia.com>
 ##
 ## Started on  Mon May 13 18:04:23 2024 Zhijin Li
-## Last update Fri Aug  2 14:28:02 2024 Zhijin Li
+## Last update Fri Aug  2 21:11:38 2024 Zhijin Li
 ## ---------------------------------------------------------------------------
 
 
@@ -17,6 +17,8 @@ import random
 import skimage
 import numpy as np
 import tomosipo as ts
+
+from copy import deepcopy
 from ts_algorithms import fdk
 
 import pydicom
@@ -48,13 +50,12 @@ def convert_to_dcm(
 ):
     dcm_ds = pydicom.Dataset()
 
-    sop_instance_uid = pydicom.uid.generate_uid()
-    dcm_ds.SOPInstanceUID = sop_instance_uid
+    dcm_ds.AccessionNumber = "REMOVED"
+    dcm_ds.FrameOfReferenceUID = pydicom.uid.generate_uid()
 
     # Meta data
     meta_ds = pydicom.Dataset()
     meta_ds.MediaStorageSOPClassUID = pydicom._storage_sopclass_uids.CTImageStorage
-    meta_ds.MediaStorageSOPInstanceUID = sop_instance_uid
     meta_ds.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
     dcm_ds.file_meta = meta_ds
 
@@ -66,6 +67,11 @@ def convert_to_dcm(
     # Patient
     dcm_ds.PatientName = "ANON"
     dcm_ds.PatientID = pydicom.uid.generate_uid()
+    dcm_ds.PatientBirthDate = "19000101"
+    dcm_ds.PatientSex = "M"
+    dcm_ds.PatientOrientation = "L\P"
+    patient_position_origin = [-91.5, -91.5, -80.85]
+
 
     # Modality
     dcm_ds.SOPClassUID = pydicom._storage_sopclass_uids.CTImageStorage
@@ -77,16 +83,20 @@ def convert_to_dcm(
     dcm_ds.StudyDescription = 'holoscan sample data'
     dcm_ds.StudyDate = '19000101'                   # needed to create DICOMDIR
     dcm_ds.StudyID = str(random.randint(0,1000))
+    dcm_ds.StudyTime = "120000"
 
     # Series
     dcm_ds.SeriesInstanceUID = pydicom.uid.generate_uid()
     dcm_ds.SeriesDescription = 'holoscan sample data'
     dcm_ds.SeriesNumber = str(random.randint(0,1000))
+    dcm_ds.Laterality = "L"
 
     # Image
-    dcm_ds.Rows = inp.shape[0]
-    dcm_ds.Columns = inp.shape[1]
-    dcm_ds.NumberOfFrames = inp.shape[2]
+    dcm_ds.AcquisitionNumber = 1
+    dcm_ds.KVP = 110
+
+    dcm_ds.Rows = inp.shape[1]
+    dcm_ds.Columns = inp.shape[2]
 
     dcm_ds.PixelSpacing = [pixel_spacing_x, pixel_spacing_y]
     dcm_ds.SliceThickness = slice_thickness
@@ -101,91 +111,112 @@ def convert_to_dcm(
     dcm_ds.BitsStored = 16
     dcm_ds.HighBit = 15
 
+    dcm_ds.RescaleIntercept = "0.0"
+    dcm_ds.RescaleSlope = "1.0"
+    dcm_ds.RescaleType = 'HU'
+
     # Data
     dcm_ds.PixelRepresentation = 1
-    inp = cp.asarray(inp, dtype=cp.uint16)
-    dcm_ds.PixelData = inp.tobytes()
 
-    dcm_ds.save_as('./volume.dcm', write_like_original=False)
-    return dcm_ds
+    inp = cp.asarray(inp)
+    inp = (inp - inp.min()) / (inp.max() - inp.min()) * 6000
+    inp = cp.asarray(inp, dtype=cp.uint16)
+
+    slices = []
+    for frame_id in range(inp.shape[0]):
+        slice_ds = deepcopy(dcm_ds)
+
+        sop_instance_uid = pydicom.uid.generate_uid()
+        slice_ds.file_meta.MediaStorageSOPInstanceUID = sop_instance_uid
+        slice_ds.SOPInstanceUID  = sop_instance_uid
+        slice_ds.InstanceNumber = frame_id
+
+        slice_patient_position = deepcopy(patient_position_origin)
+        slice_patient_position[-1] += slice_thickness * frame_id
+        slice_ds.ImagePositionPatient = slice_patient_position
+
+        slice_ds.PixelData = inp[frame_id,:,:].tobytes()
+        slices.append(slice_ds)
+
+        slice_ds.save_as(f'./volume/slice-{frame_id:03}.dcm', write_like_original=False)
+
+    return slices
 
 
 class InputOp(Operator):
-  """
-  Operator which simulates streaming of CBCT projection
-  data one-by-one.
+    """
+    Operator which simulates streaming of CBCT projection
+    data one-by-one.
 
-  The number of projection images is determined by the
-  `num_angles` property in the config file.
-  """
-  def __init__(
-      self,
-      fragment,
-      *args,
-      sinogram_path,
-      sinogram_size_x,
-      sinogram_size_y,
-      sinogram_size_z,
-      num_angles,
-      **kwargs,
-  ):
-    super().__init__(fragment, *args, **kwargs)
+    The number of projection images is determined by the
+    `num_angles` property in the config file.
+    """
+    def __init__(
+            self,
+            fragment,
+            *args,
+            sinogram_path,
+            sinogram_size_x,
+            sinogram_size_y,
+            sinogram_size_z,
+            num_angles,
+            **kwargs,
+    ):
+        super().__init__(fragment, *args, **kwargs)
 
-    # Load sinogram
-    sino = np.load(
-      sinogram_path,
-      allow_pickle=True
-    )
+        # Load sinogram
+        sino = np.load(sinogram_path, allow_pickle=True)
 
-    # Optionally scale up sinogram for a more
-    # realistic resolution.
-    sino = self.__scale_sinogram(
-      sino,
-      sinogram_size_x,
-      sinogram_size_y,
-      sinogram_size_z
-    )
-
-    self.sino = cp.asarray(sino, dtype=cp.float32)
-    self.angles = cp.linspace(0, 2*cp.pi, num_angles, endpoint=False)
-    self.counter = 0
-
-  def __scale_sinogram(
-      self,
-      sino,
-      sinogram_size_x,
-      sinogram_size_y,
-      sinogram_size_z,
-  ):
-    if any((sino.shape[0] != sinogram_size_x,
-            sino.shape[1] != sinogram_size_y,
-            sino.shape[2] != sinogram_size_z)):
-      return skimage.transform.resize(
-        sino,
-        output_shape=(
-          sinogram_size_x,
-          sinogram_size_y,
-          sinogram_size_z,
+        # Optionally scale up sinogram for a more
+        # realistic resolution.
+        sino = self.__scale_sinogram(
+            sino,
+            sinogram_size_x,
+            sinogram_size_y,
+            sinogram_size_z,
         )
-      )
 
-  def setup(self, spec: OperatorSpec):
-    spec.output("out")
+        self.sino = cp.asarray(sino, dtype=cp.float32)
+        self.angles = cp.linspace(0, 2*cp.pi, num_angles, endpoint=False)
+        self.counter = 0
 
-  def compute(self, op_input, op_output, context):
+    def __scale_sinogram(
+            self,
+            sino,
+            sinogram_size_x,
+            sinogram_size_y,
+            sinogram_size_z,
+    ):
+        if any((sino.shape[0] != sinogram_size_x,
+                sino.shape[1] != sinogram_size_y,
+                sino.shape[2] != sinogram_size_z)):
+            return skimage.transform.resize(
+                sino,
+                output_shape=(
+                    sinogram_size_x,
+                    sinogram_size_y,
+                    sinogram_size_z,
+                )
+            )
+        else:
+            return sino
 
-    sino_emit = self.sino[:,self.counter:self.counter+1,:]
-    angles_emit = self.angles[self.counter:self.counter+1]
+    def setup(self, spec: OperatorSpec):
+        spec.output("out")
 
-    self.counter += 1
+    def compute(self, op_input, op_output, context):
+        sino_emit = self.sino[:,self.counter:self.counter+1,:]
+        angles_emit = self.angles[self.counter:self.counter+1]
 
-    op_output.emit(
-      {
-        "sino": sino_emit,
-        "angles": angles_emit,
-      },
-      "out"
-    )
+        self.counter += 1
+
+        op_output.emit(
+            {
+                "sino": sino_emit,
+                "angles": angles_emit,
+            },
+            "out"
+        )
 
 
 class FDKReconOp(Operator):
@@ -341,26 +372,29 @@ class DICOMSenderOp(Operator):
         self.ae = AE()
         self.ae.add_requested_context(CTImageStorage)
 
-    def send_c_store(self, dcm_dataset):
+    def send_c_store(self, dcm_slices):
         # Associate with DICOM server
         assoc = self.ae.associate(self.ip, self.port)
 
         if assoc.is_established:
-            # Use the C-STORE service to send the dataset
-            # returns the response status as a pydicom Dataset
-            status = assoc.send_c_store(dcm_dataset)
+            print(f"connected to DICOM server {self.ip} @port {self.port}")
 
-            # Check the status of the storage request
-            if status:
-                # If the storage request succeeded this will be 0x0000
-                print('data sending request status: 0x{0:04x}'.format(status.Status))
-            else:
-                print('Connection timed out, was aborted or received invalid response')
+            for slice_id, slice_ds in enumerate(dcm_slices):
+                status = assoc.send_c_store(slice_ds)
 
-            # Release the association
+                if status:
+                    print(
+                        "\r",
+                        "slice {0:03} sent, status: 0x{0:04x}".format(
+                            slice_id + 1, status.Status),
+                        end="",
+                        flush=True,
+                    )
+                else:
+                    print('timed out, was aborted or received invalid response')
             assoc.release()
         else:
-            print('Association rejected, aborted or never connected')
+            print('association rejected, aborted or never connected')
 
     def compute(self, op_input, op_output, context):
         in_message = op_input.receive("in")

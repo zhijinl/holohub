@@ -47,9 +47,9 @@ geometry:
   # FOV in x, y and z directions, in voxel counts
   # This determines the size of the reconstructed volume
   # in voxel counts
-  fov_x_voxels: 512
-  fov_y_voxels: 512
-  fov_z_voxels: 512
+  fov_x_voxels: 256
+  fov_y_voxels: 256
+  fov_z_voxels: 256
 
   # Information on flat-panel detector. This info determines
   # the size and shape of the projection / sinogram.
@@ -60,8 +60,8 @@ geometry:
   detector_y_lu: 600
 
   # Detector size in x and y directions in pixel count
-  detector_x_pixels: 512
-  detector_y_pixels: 512
+  detector_x_pixels: 256
+  detector_y_pixels: 256
 
   # Number of sampling angles per rotation (360 degree)
   # Size of the sinogram (in voxels) will be equal to:
