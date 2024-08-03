@@ -29,6 +29,9 @@ import pydicom._storage_sopclass_uids
 from pynetdicom import AE, debug_logger
 from pynetdicom.sop_class import CTImageStorage
 
+from polygraphy.backend.common import bytes_from_path
+from polygraphy.backend.trt import TrtRunner, engine_from_bytes
+
 from holoscan import as_tensor
 from holoscan.resources import CudaStreamPool
 from holoscan.conditions import CountCondition, BooleanCondition
@@ -165,8 +168,6 @@ class InputOp(Operator):
             num_angles,
             **kwargs,
     ):
-        super().__init__(fragment, *args, **kwargs)
-
         # Load sinogram
         sino = np.load(sinogram_path, allow_pickle=True)
 
@@ -182,6 +183,8 @@ class InputOp(Operator):
         self.sino = cp.asarray(sino, dtype=cp.float32)
         self.angles = cp.linspace(0, 2*cp.pi, num_angles, endpoint=False)
         self.counter = 0
+
+        super().__init__(fragment, *args, **kwargs)
 
     def __scale_sinogram(
             self,
@@ -248,8 +251,6 @@ class FDKReconOp(Operator):
       src_det_dist,
       **kwargs,
   ):
-    super().__init__(fragment, *args, **kwargs)
-
     self.fov_size_lu = [
       fov_x_lu,
       fov_y_lu,
@@ -285,6 +286,8 @@ class FDKReconOp(Operator):
 
     self.counter = 0
     self.num_angles = num_angles
+
+    super().__init__(fragment, *args, **kwargs)
 
   def setup(self, spec: OperatorSpec):
     spec.input("in")
@@ -329,11 +332,61 @@ class FDKReconOp(Operator):
 
     op_output.emit(
         {
-            "recon": cp.asarray(self.final_recon),
+            "recon": cp.reshape(cp.asarray(self.final_recon), (1,1,*self.final_recon.shape)),
             "recon_complete": cp.asarray([int(self.counter == self.num_angles)])
         },
         "out_recon"
     )
+
+
+class VolumeDenoisingOp(Operator):
+    """
+    Custom inference op to performance denoising when
+    recon is complete.
+
+    TODO: currently implemented using polygraphy APIs
+    for TRT inference - InferenceOp does not work
+    correctly ...
+    """
+    def __init__(
+            self,
+            fragment,
+            *args,
+            model_path,
+            model_input_name,
+            model_output_name,
+            **kwargs,
+    ):
+        self.model_path = model_path
+        self.model_input_name = model_input_name
+        self.model_output_name = model_output_name
+        super().__init__(fragment, *args, **kwargs)
+
+    def setup(self, spec: OperatorSpec):
+        spec.input("in")
+        spec.output("out_volume_denoised")
+
+        self.engine = engine_from_bytes(bytes_from_path(self.model_path))
+        self.runner = TrtRunner(self.engine)
+
+    def compute(self, op_input, op_output, context):
+        in_message = op_input.receive("in")
+        recon_complete = in_message["recon_complete"]
+
+        if cp.asarray(recon_complete)[0]:
+            with self.runner as runner:
+                input_data = cp.asarray(in_message["recon"], dtype=np.float32)
+                input_data = np.squeeze(cp.asnumpy(input_data))
+
+                output = runner.infer(feed_dict={self.model_input_name: input_data})
+
+                op_output.emit(
+                    {
+                        "recon": cp.asarray(output[self.model_output_name]),
+                        "recon_complete": cp.asarray([1]),
+                    },
+                    "out_volume_denoised"
+                )
 
 
 class DICOMSenderOp(Operator):
@@ -356,7 +409,6 @@ class DICOMSenderOp(Operator):
             fov_z_voxels,
             **kwargs,
     ):
-        super().__init__(fragment, *args, **kwargs)
         self.ip = ip
         self.port = port
 
@@ -366,6 +418,7 @@ class DICOMSenderOp(Operator):
         self.fov_x_voxels = fov_x_voxels
         self.fov_y_voxels = fov_y_voxels
         self.fov_z_voxels = fov_z_voxels
+        super().__init__(fragment, *args, **kwargs)
 
     def setup(self, spec: OperatorSpec):
         spec.input("in")
@@ -459,12 +512,12 @@ class FDKReconApp(Application):
       **self.kwargs("geometry"),
     )
 
-    # denoising_volume_op = InferenceOp(
-    #     self,
-    #     name="denoising_volume",
-    #     allocator=cuda_stream_pool,
-    #     **self.kwargs("denoising_volume"),
-    # )
+    volume_denoising_op = VolumeDenoisingOp(
+        self,
+        name="denoising_volume",
+        allocator=cuda_stream_pool,
+        **self.kwargs("denoising_volume"),
+    )
 
     # Use VTK for 3D visualization
     visualizer_op = HolovizOp(
@@ -477,7 +530,14 @@ class FDKReconApp(Application):
     )
 
     # Send data to DICOM server when recon is complete
-    dcm_sender_op = DICOMSenderOp(
+    dcm_sender_op_volume = DICOMSenderOp(
+        self,
+        ip=self.kwargs("dicom_server")["ip"],
+        port=self.kwargs("dicom_server")["port"],
+        **self.kwargs("geometry"),
+    )
+
+    dcm_sender_op_volume_denoised = DICOMSenderOp(
         self,
         ip=self.kwargs("dicom_server")["ip"],
         port=self.kwargs("dicom_server")["port"],
@@ -486,11 +546,9 @@ class FDKReconApp(Application):
 
     self.add_flow(input_op, recon_op, {("out", "in")})
     self.add_flow(recon_op, visualizer_op, {("out_vis", "receivers")})
-    self.add_flow(recon_op, dcm_sender_op, {("out_recon", "in")})
-
-    # self.add_flow(input_op, denoising_sino_op, {("out", "receivers")})
-    # self.add_flow(denoising_sino_op, recon_op, {("transmitter", "in")})
-    # self.add_flow(recon_op, visualizer_op, {("out", "receivers")})
+    self.add_flow(recon_op, dcm_sender_op_volume, {("out_recon", "in")})
+    self.add_flow(recon_op, volume_denoising_op, {("out_recon", "in")})
+    self.add_flow(volume_denoising_op, dcm_sender_op_volume_denoised, {("out_volume_denoised", "in")})
 
 
 if __name__ == "__main__":
