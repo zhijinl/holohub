@@ -329,10 +329,9 @@ class FDKReconOp(Operator):
         },
         "out_vis"
     )
-
     op_output.emit(
         {
-            "recon": cp.reshape(cp.asarray(self.final_recon), (1,1,*self.final_recon.shape)),
+            "recon": cp.asarray(self.final_recon),
             "recon_complete": cp.asarray([int(self.counter == self.num_angles)])
         },
         "out_recon"
@@ -376,7 +375,7 @@ class VolumeDenoisingOp(Operator):
         if cp.asarray(recon_complete)[0]:
             with self.runner as runner:
                 input_data = cp.asarray(in_message["recon"], dtype=np.float32)
-                input_data = np.squeeze(cp.asnumpy(input_data))
+                input_data = cp.asnumpy(input_data)
 
                 output = runner.infer(feed_dict={self.model_input_name: input_data})
 
