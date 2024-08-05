@@ -46,7 +46,9 @@ for authentication are both `orthanc`, and can be changed through
 modifying the `RegisteredUsers` field in the [Orthanc config
 file](orthanc/orthanc_config.json).
 
-<img align="center" src="./figs/orthanc-landing.png" width="800" alt="Orthanc landing"/>
+<p align="center">
+<img src="./figs/orthanc-landing.png" width="800" alt="Orthanc landing"/>
+</p>
 
 #### Access the OHIF viewer
 
@@ -56,15 +58,19 @@ worklist (see the first figure below). If the recon app has
 previously sent volumes to Orthanc, you will see these volumes appear
 here automatically.
 
-<img align="center" src="./figs/ohif-landing.png" width="800" alt="OHIF landing"/>
+<p align="center">
+<img src="./figs/ohif-landing.png" width="800" alt="OHIF landing"/>
+</p>
 
 You can open a patient data and visualize the reconstructed volumes
 for further analysis. The two figures below show the viewer panel. The
 left figure displays the original reconstructed volume and the right
 figure displays the denoised volume.
 
-<img align="center" src="./figs/ohif-viewer-recon-original.png"
+<p align="center">
+<img src="./figs/ohif-viewer-recon-original.png"
 width="450" alt="OHIF viewer recon"/><img align="center" src="./figs/ohif-viewer-recon-denoised.png" width="450" alt="OHIF viewer denoised"/>
+</p>
 
 #### Run Automatic Segmentation
 
@@ -74,10 +80,20 @@ will open that allows you to perform automatic segmentation of the
 CBCT volumes using using the [whole-body CT Segmentation
 model](https://github.com/Project-MONAI/model-zoo/tree/dev/models/wholeBody_ct_segmentation)
 from MONAI Model Zoo. To do that, you might first need to click on the
-refresh button in the "MONAI Label" tab (see yellow circle in the
+refresh button in the "MONAI Label" tab (see the circle mark in the
 figure below) for the model to appear. And then click on the "Run"
-button in the "Auto-Segmentation" tab (see green circle in the figure
-below). After waiting a couple of seconds, you should see the
+button in the "Auto-Segmentation" tab (see the rectangle mark in the
+figure below). After waiting a couple of seconds, you should see the
 segmentation masks pop-up in the same viewer window.
 
-<img align="center" src="./figs/monai-label.png" width="800" alt="MONAI Label"/>
+<p align="center">
+<img src="./figs/monai-label.png" width="800" alt="MONAI Label"/>
+</p>
+
+The figures below show automatic segmentation results for the original
+reconstructed volume (upper) and for the denoised volume (lower).
+
+<p align="center">
+<img src="./figs/monai-label-segmentation-original.png" width="800" alt="MONAI Label recon"/>
+<img src="./figs/monai-label-segmentation-denoised.png" width="800" alt="MONAI Label denoised"/>
+</p>
