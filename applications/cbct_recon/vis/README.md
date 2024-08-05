@@ -46,7 +46,7 @@ for authentication are both `orthanc`, and can be changed through
 modifying the `RegisteredUsers` field in the [Orthanc config
 file](orthanc/orthanc_config.json).
 
-<img src="./figs/orthanc-landing.png" width="600" alt="Orthanc landing"/>
+<img align="center" src="./figs/orthanc-landing.png" width="800" alt="Orthanc landing"/>
 
 #### Access the OHIF viewer
 
@@ -56,14 +56,15 @@ worklist (see the first figure below). If the recon app has
 previously sent volumes to Orthanc, you will see these volumes appear
 here automatically.
 
-<img src="./figs/ohif-landing.png" width="600" alt="OHIF landing"/>
+<img align="center" src="./figs/ohif-landing.png" width="800" alt="OHIF landing"/>
 
 You can open a patient data and visualize the reconstructed volumes
 for further analysis. The two figures below show the viewer panel. The
 left figure displays the original reconstructed volume and the right
 figure displays the denoised volume.
 
-<img src="./figs/ohif-viewer-recon-original.png" width="300" alt="OHIF viewer recon"/><img src="./figs/ohif-viewer-recon-denoised.png" width="300" alt="OHIF viewer denoised"/>
+<img align="center" src="./figs/ohif-viewer-recon-original.png"
+width="450" alt="OHIF viewer recon"/><img align="center" src="./figs/ohif-viewer-recon-denoised.png" width="450" alt="OHIF viewer denoised"/>
 
 #### Run Automatic Segmentation
 
@@ -79,4 +80,4 @@ button in the "Auto-Segmentation" tab (see green circle in the figure
 below). After waiting a couple of seconds, you should see the
 segmentation masks pop-up in the same viewer window.
 
-<img src="./figs/monai-label.png" width="600" alt="MONAI Label"/>
+<img align="center" src="./figs/monai-label.png" width="800" alt="MONAI Label"/>
