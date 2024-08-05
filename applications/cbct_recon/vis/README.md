@@ -68,8 +68,9 @@ left figure displays the original reconstructed volume and the right
 figure displays the denoised volume.
 
 <p align="center">
-<img src="./figs/ohif-viewer-recon-original.png"
-width="450" alt="OHIF viewer recon"/><img align="center" src="./figs/ohif-viewer-recon-denoised.png" width="450" alt="OHIF viewer denoised"/>
+<img src="./figs/ohif-viewer-recon-original.png" width="450" alt="OHIF viewer recon"/>
+&nbsp; &nbsp; &nbsp;
+<img src="./figs/ohif-viewer-recon-denoised.png" width="450" alt="OHIF viewer denoised"/>
 </p>
 
 #### Run Automatic Segmentation
