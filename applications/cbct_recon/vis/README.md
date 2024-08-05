@@ -54,12 +54,16 @@ In the browser, navigate to `http://10.21.11.123:8000/ohif/`. You will
 land on the web-page for OHIF viewer, where you can see a patient
 worklist (see the first figure below). If the recon app has
 previously sent volumes to Orthanc, you will see these volumes appear
-here automatically. You can open a patient data and visualize the
-reconstructed volumes for further analysis  (see the second figure
-below).
+here automatically.
 
 <img src="./figs/ohif-landing.png" width="600" alt="OHIF landing"/>
-<img src="./figs/ohif-viewer.png" width="600" alt="OHIF viewer"/>
+
+You can open a patient data and visualize the reconstructed volumes
+for further analysis. The two figures below show the viewer panel. The
+left figure displays the original reconstructed volume and the right
+figure displays the denoised volume.
+
+<img src="./figs/ohif-viewer-recon-original.png" width="300" alt="OHIF viewer recon"/><img src="./figs/ohif-viewer-recon-denoised.png" width="300" alt="OHIF viewer denoised"/>
 
 #### Run Automatic Segmentation
 
