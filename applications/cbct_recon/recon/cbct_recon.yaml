@@ -73,18 +73,6 @@ geometry:
   # Distance from the source to the detector
   src_det_dist: 1050
 
-# denoising_sinogram:
-#   model_path_map:
-#     "denoising_sino_model": "./best_metric_sino_low.pt"
-#   backend: "trt" #"torch"
-#   infer_on_cpu: false
-#   pre_processor_map:
-#     "denoising_sino_model": ["sino"]
-#   inference_map:
-#     "denoising_sino_model": "sino_denoised"
-#   in_tensor_names: ["sino"]
-#   out_tensor_names: ["sino_denoised"]
-
 denoising_volume:
   model_path: "./model_denoising_volume.engine"
   model_input_name: "image"

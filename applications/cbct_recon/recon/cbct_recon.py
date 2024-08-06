@@ -373,9 +373,10 @@ class VolumeDenoisingOp(Operator):
         recon_complete = in_message["recon_complete"]
 
         if cp.asarray(recon_complete)[0]:
+            print("running volume denoising ...")
             with self.runner as runner:
                 input_data = cp.asarray(in_message["recon"], dtype=np.float32)
-                input_data = cp.asnumpy(input_data)
+                input_data = torch.as_tensor(input_data, device="cuda")
 
                 output = runner.infer(feed_dict={self.model_input_name: input_data})
 
@@ -400,23 +401,16 @@ class DICOMSenderOp(Operator):
             *args,
             ip,
             port,
-            fov_x_lu,
-            fov_y_lu,
-            fov_z_lu,
-            fov_x_voxels,
-            fov_y_voxels,
-            fov_z_voxels,
+            pixel_spacing_x,
+            pixel_spacing_y,
+            slice_thickness,
             **kwargs,
     ):
         self.ip = ip
         self.port = port
-
-        self.fov_x_lu = fov_x_lu
-        self.fov_y_lu = fov_y_lu
-        self.fov_z_lu = fov_z_lu
-        self.fov_x_voxels = fov_x_voxels
-        self.fov_y_voxels = fov_y_voxels
-        self.fov_z_voxels = fov_z_voxels
+        self.pixel_spacing_x=pixel_spacing_x
+        self.pixel_spacing_y=pixel_spacing_y
+        self.slice_thickness=slice_thickness
         super().__init__(fragment, *args, **kwargs)
 
     def setup(self, spec: OperatorSpec):
@@ -457,16 +451,11 @@ class DICOMSenderOp(Operator):
 
         if cp.asarray(recon_complete)[0]:
             print("recon complete, sending results to DICOM server...")
-
-            pixel_spacing_x = float(self.fov_x_lu) / self.fov_x_voxels
-            pixel_spacing_y = float(self.fov_y_lu) / self.fov_y_voxels
-            slice_thickness = float(self.fov_z_lu) / self.fov_z_voxels
-
             dcm_ds = convert_to_dcm(
                 in_message["recon"],
-                pixel_spacing_x,
-                pixel_spacing_y,
-                slice_thickness
+                self.pixel_spacing_x,
+                self.pixel_spacing_y,
+                self.slice_thickness,
             )
 
             self.send_c_store(dcm_ds)
@@ -498,13 +487,6 @@ class FDKReconApp(Application):
       num_angles=self.kwargs("geometry")["num_angles"],
     )
 
-    # denoising_sino_op = InferenceOp(
-    #   self,
-    #   name="denoising_sinogram",
-    #   allocator=cuda_stream_pool,
-    #   **self.kwargs("denoising_sinogram"),
-    # )
-
     recon_op = FDKReconOp(
       self,
       name="fdk_recon",
@@ -528,19 +510,28 @@ class FDKReconApp(Application):
       height=self.kwargs("geometry")["fov_y_voxels"],
     )
 
+    # Compute pixel spacing and slice thickness for DICOM conversion
+    pixel_spacing_x = float(self.kwargs("geometry")["fov_x_lu"]) / self.kwargs("geometry")["fov_x_voxels"]
+    pixel_spacing_y = float(self.kwargs("geometry")["fov_y_lu"]) / self.kwargs("geometry")["fov_y_voxels"]
+    slice_thickness = float(self.kwargs("geometry")["fov_z_lu"]) / self.kwargs("geometry")["fov_z_voxels"]
+
     # Send data to DICOM server when recon is complete
     dcm_sender_op_volume = DICOMSenderOp(
         self,
         ip=self.kwargs("dicom_server")["ip"],
         port=self.kwargs("dicom_server")["port"],
-        **self.kwargs("geometry"),
+        pixel_spacing_x=pixel_spacing_x,
+        pixel_spacing_y=pixel_spacing_y,
+        slice_thickness=slice_thickness,
     )
 
     dcm_sender_op_volume_denoised = DICOMSenderOp(
         self,
         ip=self.kwargs("dicom_server")["ip"],
         port=self.kwargs("dicom_server")["port"],
-        **self.kwargs("geometry"),
+        pixel_spacing_x=pixel_spacing_x,
+        pixel_spacing_y=pixel_spacing_y,
+        slice_thickness=slice_thickness,
     )
 
     self.add_flow(input_op, recon_op, {("out", "in")})
