@@ -42,39 +42,22 @@ RUN echo ". /etc/bash_completion.d/holohub_autocomplete" >> /etc/bash.bashrc
 #   performed at docker run time in case users want to use a different BUILD_TYPE
 ARG CMAKE_BUILD_TYPE=Release
 
-
-# Build & install astra-toolbox
-
-RUN git clone https://github.com/astra-toolbox/astra-toolbox.git /astra-toolbox
-
-RUN apt update && apt install -y autotools-dev \
-    autoconf \
-    libtool
-
-RUN python -m pip install setuptools==58.2.0
-RUN python -m pip install Cython six scipy
-
-RUN cd /astra-toolbox/build/linux/ && ./autogen.sh && ./configure --with-cuda=/usr/local/cuda \
-    --with-python \
-    --with-install-type=module && \
-    make && make install
-
-RUN echo 'alias ll="ls -lah --color"' >> ~/.bashrc
-
-
-# Install tomosipo and ts_algorithms
-RUN pip install git+https://github.com/ahendriksen/tomosipo@develop
-RUN pip install git+https://github.com/ahendriksen/ts_algorithms.git
-
-RUN pip install scikit-image
-
-
-# Install pytorch
-RUN if [ "$(uname -m)" = "x86_64" ] ; then \
-    pip install torch; \
-    elif [ "$(uname -m)" = "aarch64" ] ; then \
-    cd /tmp && wget https://developer.download.nvidia.cn/compute/redist/jp/v60dp/pytorch/torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl && \
-    pip install torch-2.2.0a0+6a974be.nv23.11-cp310-cp310-linux_aarch64.whl; \
-    fi
-
+# DICOM dependencies
 RUN pip install pydicom pynetdicom
+
+# Install ELSA toolkit
+RUN cd /tmp && git clone https://gitlab.com/tum-ciip/elsa.git && cd elsa/ && pip install .
+
+# Install RTK
+RUN cd /tmp && git clone https://github.com/InsightSoftwareConsortium/ITK.git
+RUN mkdir /tmp/itk-build && cd /tmp/itk-build && \
+    cmake \
+    -DModule_RTK=ON \
+    -DRTK_BUILD_APPLICATIONS=OFF \
+    -DRTK_USE_CUDA=ON \
+    -DITK_WRAP_PYTHON=ON \
+    -DModule_RTK_GIT_TAG=master \
+    -DBUILD_TESTING=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    ../ITK/ && \
+    make -j8 && make install
