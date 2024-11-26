@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.20.1)
-project(Holohub-internal CXX)
+project(Holohub CXX)
 
 # set CMAKE_MODULE_PATH
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -23,6 +23,11 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/deps)
 
 # To configure which apps/operators to build
 include(HoloHubConfigHelpers)
+
+# Set install directory
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
+endif()
 
 # Enable Testing
 include(CTest)
@@ -38,9 +43,19 @@ if(FLOW_BENCHMARKING)
   file(MAKE_DIRECTORY "${FLOW_BENCHMARK_DIR}")
 endif()
 
+if(HOLOHUB_BUILD_PYTHON)
+  # Define and create a directory to store python operators under the holohub python module
+  if(NOT CMAKE_INSTALL_LIBDIR)
+    set(CMAKE_INSTALL_LIBDIR lib)
+  endif()
+  set(HOLOHUB_PYTHON_MODULE_OUT_DIR ${CMAKE_BINARY_DIR}/python/${CMAKE_INSTALL_LIBDIR}/holohub)
+  file(MAKE_DIRECTORY ${HOLOHUB_PYTHON_MODULE_OUT_DIR})
+endif()
+
 # Set the default data directory
 set(HOLOHUB_DATA_DIR "${CMAKE_BINARY_DIR}/data" CACHE PATH "Data Download directory")
-set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib:/opt/nvidia/holoscan/lib/")
+set(CMAKE_INSTALL_RPATH
+    "\$ORIGIN:\$ORIGIN/../../../lib:\$ORIGIN/../../lib:/opt/nvidia/holoscan/lib/")
 
 # Build the applications
 add_subdirectory(applications)

@@ -17,7 +17,7 @@
 
 #include <getopt.h>
 
-#include "holoscan/holoscan.hpp"
+#include <holoscan/holoscan.hpp>
 #include <holoscan/operators/aja_source/aja_source.hpp>
 #include <holoscan/operators/format_converter/format_converter.hpp>
 #include <holoscan/operators/holoviz/holoviz.hpp>
@@ -37,6 +37,11 @@
 #ifdef YUAN_QCAP
 #include <qcap_source.hpp>
 #endif
+
+#include <holoscan/version_config.hpp>
+
+#define HOLOSCAN_VERSION \
+  (HOLOSCAN_VERSION_MAJOR * 10000 + HOLOSCAN_VERSION_MINOR * 100 + HOLOSCAN_VERSION_PATCH)
 
 class App : public holoscan::Application {
  public:
@@ -111,6 +116,10 @@ class App : public holoscan::Application {
       height = 480;
       source = make_operator<ops::VideoStreamReplayerOp>(
           "replayer", from_config("replayer"), Arg("directory", datapath));
+#if HOLOSCAN_VERSION >= 20600
+      // the RMMAllocator supported since v2.6 is much faster than the default UnboundAllocator
+      source->add_arg(Arg("allocator", make_resource<RMMAllocator>("video_replayer_allocator")));
+#endif
       source_block_size = width * height * 3 * 4;
       source_num_blocks = 2;
     }
@@ -151,16 +160,19 @@ class App : public holoscan::Application {
             "pool", 1, lstm_inferer_block_size, lstm_inferer_num_blocks),
         Arg("cuda_stream_pool") = cuda_stream_pool);
 
-    const uint64_t tool_tracking_postprocessor_block_size = 107 * 60 * 7 * 4;
-    const uint64_t tool_tracking_postprocessor_num_blocks = 2;
+    // the tool tracking post process outputs
+    // - a RGBA float32 color mask
+    // - coordinates with x,y and size in float32
+    const uint64_t tool_tracking_postprocessor_block_size =
+        std::max(107 * 60 * 7 * 4 * sizeof(float), 7 * 3 * sizeof(float));
+    const uint64_t tool_tracking_postprocessor_num_blocks = 2 * 2;
     auto tool_tracking_postprocessor = make_operator<ops::ToolTrackingPostprocessorOp>(
         "tool_tracking_postprocessor",
         Arg("device_allocator") =
             make_resource<BlockMemoryPool>("device_allocator",
                                            1,
                                            tool_tracking_postprocessor_block_size,
-                                           tool_tracking_postprocessor_num_blocks),
-        Arg("host_allocator") = make_resource<UnboundedAllocator>("host_allocator"));
+                                           tool_tracking_postprocessor_num_blocks));
 
     if (this->visualizer_name == "holoviz") {
       std::shared_ptr<BlockMemoryPool> visualizer_allocator;
@@ -181,26 +193,14 @@ class App : public holoscan::Application {
     }
 #ifdef VTK_RENDERER
     if (this->visualizer_name == "vtk") {
-      visualizer_operator = make_operator<ops::VtkRendererOp>("vtk",
-                                                      from_config("vtk_op"),
-                                                      Arg("width") = width,
-                                                      Arg("height") = height);
+      visualizer_operator = make_operator<ops::VtkRendererOp>(
+          "vtk", from_config("vtk_op"), Arg("width") = width, Arg("height") = height);
     }
 #endif
 
     // Flow definition
     add_flow(lstm_inferer, tool_tracking_postprocessor, {{"tensor", "in"}});
-
-    if (this->visualizer_name == "holoviz") {
-      add_flow(tool_tracking_postprocessor,
-               visualizer_operator,
-               {{"out_coords", input_annotations_signal}, {"out_mask", input_annotations_signal}});
-    } else {
-      // device tensor on the out_mask port is not used by VtkRendererOp
-      add_flow(tool_tracking_postprocessor,
-               visualizer_operator,
-               {{"out_coords", input_annotations_signal}});
-    }
+    add_flow(tool_tracking_postprocessor, visualizer_operator, {{"out", input_annotations_signal}});
 
     std::string output_signal = "output";  // replayer output signal name
     if (source_ == "deltacast") {
@@ -275,46 +275,68 @@ class App : public holoscan::Application {
   std::string source_ = "replayer";
   std::string visualizer_name = "holoviz";
   Record record_type_ = Record::NONE;
-  std::string datapath = "data/endoscopy";
+  std::string datapath = "";
 };
 
 /** Helper function to parse the command line arguments */
-bool parse_arguments(int argc, char** argv, std::string& config_name, std::string& data_path) {
-  static struct option long_options[] = {{"data", required_argument, 0, 'd'}, {0, 0, 0, 0}};
+bool parse_arguments(int argc, char** argv, std::string& data_path, std::string& config_path) {
+  static struct option long_options[] = {
+      {"data", required_argument, 0, 'd'}, {"config", required_argument, 0, 'c'}, {0, 0, 0, 0}};
 
-  while (int c = getopt_long(argc, argv, "d", long_options, NULL)) {
+  while (int c = getopt_long(argc, argv, "d:c:", long_options, NULL)) {
     if (c == -1 || c == '?') break;
 
     switch (c) {
+      case 'c':
+        config_path = optarg;
+        break;
       case 'd':
         data_path = optarg;
         break;
       default:
-        std::cout << "Unknown arguments returned: " << c << std::endl;
+        holoscan::log_error("Unhandled option '{}'", static_cast<char>(c));
         return false;
     }
   }
 
-  if (optind < argc) { config_name = argv[optind++]; }
   return true;
 }
 
 /** Main function */
 int main(int argc, char** argv) {
+  // Parse the arguments
+  std::string config_path = "";
+  std::string data_directory = "";
+  if (!parse_arguments(argc, argv, data_directory, config_path)) { return 1; }
+  if (data_directory.empty()) {
+    // Get the input data environment variable
+    auto input_path = std::getenv("HOLOSCAN_INPUT_PATH");
+    if (input_path != nullptr && input_path[0] != '\0') {
+      data_directory = std::string(input_path);
+    } else if (std::filesystem::is_directory(std::filesystem::current_path() / "data/endoscopy")) {
+      data_directory = std::string((std::filesystem::current_path() / "data/endoscopy").c_str());
+    } else {
+      HOLOSCAN_LOG_ERROR(
+          "Input data not provided. Use --data or set HOLOSCAN_INPUT_PATH environment variable.");
+      exit(-1);
+    }
+  }
+
+  if (config_path.empty()) {
+    // Get the input data environment variable
+    auto config_file_path = std::getenv("HOLOSCAN_CONFIG_PATH");
+    if (config_file_path == nullptr || config_file_path[0] == '\0') {
+      auto config_file = std::filesystem::canonical(argv[0]).parent_path();
+      config_path = config_file / std::filesystem::path("endoscopy_tool_tracking.yaml");
+    } else {
+      config_path = config_file_path;
+    }
+  }
+
   auto app = holoscan::make_application<App>();
 
-  // Parse the arguments
-  std::string data_path = "";
-  std::string config_name = "";
-  if (!parse_arguments(argc, argv, config_name, data_path)) { return 1; }
-
-  if (config_name != "") {
-    app->config(config_name);
-  } else {
-    auto config_path = std::filesystem::canonical(argv[0]).parent_path();
-    config_path += "/endoscopy_tool_tracking.yaml";
-    app->config(config_path);
-  }
+  HOLOSCAN_LOG_INFO("Using configuration file from {}", config_path);
+  app->config(config_path);
 
   auto source = app->from_config("source").as<std::string>();
   app->set_source(source);
@@ -325,7 +347,8 @@ int main(int argc, char** argv) {
   auto visualizer_name = app->from_config("visualizer").as<std::string>();
   app->set_visualizer_name(visualizer_name);
 
-  if (data_path != "") app->set_datapath(data_path);
+  HOLOSCAN_LOG_INFO("Using input data from {}", data_directory);
+  app->set_datapath(data_directory);
 
   app->run();
 

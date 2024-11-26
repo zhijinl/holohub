@@ -118,3 +118,12 @@ if(BUILD_TESTING)
     PASS_REGULAR_EXPRESSION "Valid video output!"
   )
 endif()
+
+# Install application
+install(TARGETS object_detection_torch
+        DESTINATION bin/object_detection_torch
+)
+
+install(FILES object_detection_torch.yaml
+        DESTINATION bin/object_detection_torch
+)

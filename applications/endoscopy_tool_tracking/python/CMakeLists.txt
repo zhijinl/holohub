@@ -61,5 +61,15 @@ if(BUILD_TESTING)
     DEPENDS endoscopy_tool_tracking_python_test
     PASS_REGULAR_EXPRESSION "Valid video output!"
   )
-
 endif()
+
+# Install application and dependencies into the install/ directory for packaging
+install(
+  FILES endoscopy_tool_tracking.py
+  DESTINATION bin/endoscopy_tool_tracking/python
+)
+
+install(
+  FILES endoscopy_tool_tracking.yaml
+  DESTINATION bin/endoscopy_tool_tracking/python
+)

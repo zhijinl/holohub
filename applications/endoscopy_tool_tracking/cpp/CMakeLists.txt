@@ -73,7 +73,8 @@ if(BUILD_TESTING)
 
   # Add test
   add_test(NAME endoscopy_tool_tracking_cpp_test
-           COMMAND endoscopy_tool_tracking ${CMAKE_CURRENT_BINARY_DIR}/endoscopy_tool_tracking_testing.yaml
+           COMMAND endoscopy_tool_tracking
+                   --config ${CMAKE_CURRENT_BINARY_DIR}/endoscopy_tool_tracking_testing.yaml
                    --data "${HOLOHUB_DATA_DIR}/endoscopy"
            WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   set_tests_properties(endoscopy_tool_tracking_cpp_test PROPERTIES
@@ -151,3 +152,14 @@ if(FLOW_BENCHMARKING)
   # Set test timeout to 25 minutes
   set_tests_properties(endoscopy_tool_tracking_cpp_benchmark_test PROPERTIES TIMEOUT 1500)
 endif()
+
+# Install application and dependencies into the install/ directory for packaging
+install(
+  TARGETS endoscopy_tool_tracking
+  DESTINATION bin/endoscopy_tool_tracking/cpp
+)
+
+install(
+  FILES endoscopy_tool_tracking.yaml
+  DESTINATION bin/endoscopy_tool_tracking/cpp
+)
