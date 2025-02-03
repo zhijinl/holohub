@@ -36,6 +36,8 @@ add_holohub_application(deltacast_transmitter DEPENDS
                         OPERATORS deltacast_videomaster
                         )
 
+add_holohub_application(depth_anything_v2)
+
 add_subdirectory(distributed)
 
 add_holohub_application(endoscopy_depth_estimation)
@@ -58,6 +60,8 @@ add_holohub_application(imaging_ai_segmentator)
 
 add_holohub_application(hyperspectral_segmentation)
 
+add_subdirectory(laser_detection_latency)
+
 add_holohub_application(multiai_endoscopy)
 
 add_holohub_application(multiai_ultrasound)
@@ -77,6 +81,8 @@ add_holohub_application(prohawk_video_replayer DEPENDS OPERATORS prohawk_video_p
 add_holohub_application(qt_video_replayer DEPENDS OPERATORS qt_video npp_filter)
 
 add_holohub_application(realsense_visualizer DEPENDS OPERATORS realsense_camera)
+
+add_holohub_application(stereo_vision)
 
 add_holohub_application(tao_peoplenet)
 
@@ -113,3 +119,4 @@ add_holohub_application(webrtc_video_server)
 
 add_subdirectory(orsi)
 add_subdirectory(nvidia_nim)
+add_subdirectory(ehr_query_llm)
