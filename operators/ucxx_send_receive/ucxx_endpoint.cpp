@@ -17,6 +17,8 @@
 
 #include "ucxx_endpoint.hpp"
 
+#include <cuda_runtime.h>
+
 namespace holoscan::ops {
 
 void UcxxEndpoint::add_close_callback(std::function<void(ucs_status_t)> callback) {
@@ -60,6 +62,10 @@ void UcxxEndpoint::initialize() {
     return;
   }
   holoscan::Resource::initialize();
+
+  // Initialize CUDA primary context before UCX so UCX can detect GPU memory
+  // and use cuda_copy/cuda_ipc transports instead of falling back to TCP.
+  cudaFree(0);
 
   context_ = ::ucxx::createContext({}, ::ucxx::Context::defaultFeatureFlags);
   worker_ = context_->createWorker();

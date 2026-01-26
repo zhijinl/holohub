@@ -18,6 +18,7 @@ cmake_minimum_required(VERSION 3.20)
 project(ucxx_send_receive_operators LANGUAGES CXX)
 
 find_package(holoscan 3.8 REQUIRED CONFIG)
+find_package(CUDAToolkit REQUIRED)
 
 add_library(ucxx_common STATIC
   ucxx_endpoint.cpp
@@ -35,6 +36,7 @@ target_link_libraries(ucxx_common
     holoscan::core
     ucs
     ucxx
+    CUDA::cudart
 )
 
 add_subdirectory(receiver_op)
