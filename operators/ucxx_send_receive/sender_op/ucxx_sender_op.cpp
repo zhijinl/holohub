@@ -17,6 +17,7 @@
 
 #include "ucxx_sender_op.hpp"
 
+#include <cuda_runtime.h>
 #include <holoscan/holoscan.hpp>
 
 #include <operators/ucxx_send_receive/serialize_tensor.hpp>
@@ -59,6 +60,13 @@ void UcxxSenderOp::setup(holoscan::OperatorSpec& spec) {
       }
     }
   }
+}
+
+void UcxxSenderOp::start() {
+  // Ensure CUDA context is active on this thread so UCX can detect GPU memory.
+  // The CUDA primary context is shared across threads, but must be explicitly
+  // activated on each thread for cuPointerGetAttribute() to work.
+  cudaFree(0);
 }
 
 void UcxxSenderOp::compute(holoscan::InputContext& input, holoscan::OutputContext&,

@@ -27,4 +27,5 @@ target_link_libraries(ucxx_receiver_op
     holoscan::ops::ucxx_common
     ucs
     ucxx
+    CUDA::cudart
 )

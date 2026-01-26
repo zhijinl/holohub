@@ -19,6 +19,7 @@
 
 #include <cstring>
 
+#include <cuda_runtime.h>
 #include <fmt/format.h>
 #include <holoscan/holoscan.hpp>
 
@@ -57,7 +58,12 @@ void UcxxReceiverOp::setup(holoscan::OperatorSpec& spec) {
   }
 }
 
-void UcxxReceiverOp::start() {}
+void UcxxReceiverOp::start() {
+  // Ensure CUDA context is active on this thread so UCX can detect GPU memory.
+  // The CUDA primary context is shared across threads, but must be explicitly
+  // activated on each thread for cuPointerGetAttribute() to work.
+  cudaFree(0);
+}
 
 void UcxxReceiverOp::stop() {
   if (header_request_) {
