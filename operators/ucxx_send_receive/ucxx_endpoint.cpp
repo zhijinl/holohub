@@ -61,7 +61,7 @@ void UcxxEndpoint::initialize() {
   }
   holoscan::Resource::initialize();
 
-  context_ = ucxx::createContext({}, ucxx::Context::defaultFeatureFlags);
+  context_ = ::ucxx::createContext({}, ::ucxx::Context::defaultFeatureFlags);
   worker_ = context_->createWorker();
 
   is_alive_condition_->event_state(holoscan::AsynchronousEventState::EVENT_WAITING);

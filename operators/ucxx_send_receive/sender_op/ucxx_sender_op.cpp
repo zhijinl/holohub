@@ -76,7 +76,7 @@ void UcxxSenderOp::compute(holoscan::InputContext& input, holoscan::OutputContex
     }
 
     // Check status of both requests
-    auto check_status = [](const std::shared_ptr<ucxx::Request>& req, const char* name) {
+    auto check_status = [](const std::shared_ptr<::ucxx::Request>& req, const char* name) {
       if (!req) return;
       if (ucs_status_t status = req->getStatus(); status != UCS_OK) {
         if (status == UCS_ERR_CONNECTION_RESET || status == UCS_ERR_NOT_CONNECTED ||

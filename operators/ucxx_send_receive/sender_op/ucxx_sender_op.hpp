@@ -44,8 +44,8 @@ class UcxxSenderOp : public holoscan::Operator {
   holoscan::Parameter<bool> blocking_;
 
   struct SendRequest {
-    std::shared_ptr<ucxx::Request> header_request;  // For header
-    std::shared_ptr<ucxx::Request> data_request;    // For tensor data
+    std::shared_ptr<::ucxx::Request> header_request;  // For header
+    std::shared_ptr<::ucxx::Request> data_request;    // For tensor data
     holoscan::ops::ucxx::TensorHeader header;       // Header storage
   };
   std::list<SendRequest> requests_;

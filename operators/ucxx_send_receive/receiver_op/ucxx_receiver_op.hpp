@@ -54,8 +54,8 @@ class UcxxReceiverOp : public holoscan::Operator {
 
   std::array<uint8_t, sizeof(ucxx::TensorHeader)> header_buffer_;  // Header buffer (CPU)
   std::shared_ptr<nvidia::byte> tensor_buffer_;    // Tensor data buffer (GPU or Host)
-  std::shared_ptr<ucxx::Request> header_request_;  // Header request
-  std::shared_ptr<ucxx::Request> tensor_request_;  // Tensor data request
+  std::shared_ptr<::ucxx::Request> header_request_;  // Header request
+  std::shared_ptr<::ucxx::Request> tensor_request_;  // Tensor data request
 };
 
 }  // namespace holoscan::ops

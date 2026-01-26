@@ -44,7 +44,7 @@ class UcxxEndpoint : public holoscan::Resource {
   // Note: `endpoint_` can be reset from UCXX's progress thread in the close callback. Using
   // atomic_load/store avoids data races on the shared_ptr object itself.
   std::shared_ptr<::ucxx::Endpoint> endpoint() const { return std::atomic_load(&endpoint_); }
-  std::shared_ptr<ucxx::Worker> worker() const { return worker_; }
+  std::shared_ptr<::ucxx::Worker> worker() const { return worker_; }
 
   std::shared_ptr<holoscan::Condition> is_alive_condition() const { return is_alive_condition_; }
 
@@ -60,9 +60,9 @@ class UcxxEndpoint : public holoscan::Resource {
   holoscan::Parameter<int> port_;
   holoscan::Parameter<bool> listen_;
 
-  std::shared_ptr<ucxx::Context> context_{nullptr};
-  std::shared_ptr<ucxx::Worker> worker_{nullptr};
-  std::shared_ptr<ucxx::Listener> listener_{nullptr};
+  std::shared_ptr<::ucxx::Context> context_{nullptr};
+  std::shared_ptr<::ucxx::Worker> worker_{nullptr};
+  std::shared_ptr<::ucxx::Listener> listener_{nullptr};
   std::shared_ptr<::ucxx::Endpoint> endpoint_{nullptr};
 
   std::shared_ptr<holoscan::AsynchronousCondition> is_alive_condition_;
