@@ -23,6 +23,7 @@
 
 #include "holoscan/holoscan.hpp"
 
+#include <operators/ucxx_send_receive/serialize_tensor.hpp>
 #include <operators/ucxx_send_receive/ucxx_endpoint.hpp>
 
 namespace holoscan::ops {
@@ -43,8 +44,9 @@ class UcxxSenderOp : public holoscan::Operator {
   holoscan::Parameter<bool> blocking_;
 
   struct SendRequest {
-    std::shared_ptr<ucxx::Request> request;
-    std::vector<uint8_t> buffer;
+    std::shared_ptr<ucxx::Request> header_request;  // For header
+    std::shared_ptr<ucxx::Request> data_request;    // For tensor data
+    holoscan::ops::ucxx::TensorHeader header;       // Header storage
   };
   std::list<SendRequest> requests_;
 };

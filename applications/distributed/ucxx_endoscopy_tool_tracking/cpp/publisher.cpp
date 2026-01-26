@@ -322,6 +322,7 @@ void UcxxEndoscopyPublisherApp::compose() {
       "ucxx_receiver_overlay",
       Arg("tag", 2ul),
       Arg("buffer_size", 4 << 10),  // 4 KiB for scalar uint64 counter + header.
+      Arg("receive_on_device", false),  // Receive on host for small CPU-bound counter
       Arg("endpoint") = ucxx_endpoint_overlay,
       Arg("allocator") = overlay_rx_allocator);
 

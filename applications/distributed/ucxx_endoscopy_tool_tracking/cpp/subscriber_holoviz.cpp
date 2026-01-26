@@ -49,8 +49,8 @@ void UcxxEndoscopySubscriberHolovizApp::compose() {
       Arg("listen", false));
 
   // UCXX receiver to get rendered frames from publisher as Tensor
-  // Buffer size for RGBA frame: width * height * 4 channels + metadata overhead
-  const int buffer_size = (4 << 10) + width * height * 4;
+  // Buffer size: RGBA frame (width * height * 4 channels)
+  const int buffer_size = width * height * 4;
   auto ucxx_receiver = make_operator<holoscan::ops::UcxxReceiverOp>(
       "ucxx_receiver",
       Arg("tag", 1ul),

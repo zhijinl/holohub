@@ -17,13 +17,16 @@
 
 #pragma once
 
+#include <array>
+#include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "holoscan/holoscan.hpp"
+#include "gxf/std/tensor.hpp"
 #include "ucxx/api.h"
 
+#include "operators/ucxx_send_receive/serialize_tensor.hpp"
 #include "operators/ucxx_send_receive/ucxx_endpoint.hpp"
 
 namespace holoscan::ops {
@@ -41,12 +44,18 @@ class UcxxReceiverOp : public holoscan::Operator {
 
  private:
   holoscan::Parameter<uint64_t> tag_;
-  holoscan::Parameter<int> buffer_size_;
+  holoscan::Parameter<int> buffer_size_;  // Tensor data buffer size (required)
+  holoscan::Parameter<bool> receive_on_device_;  // True = GPU, False = Host (default: true)
   holoscan::Parameter<std::shared_ptr<UcxxEndpoint>> endpoint_;
   holoscan::Parameter<std::shared_ptr<holoscan::Allocator>> allocator_;
 
-  std::vector<uint8_t> buffer_;
-  std::shared_ptr<ucxx::Request> request_;
+  // Async condition for tensor receive
+  std::shared_ptr<holoscan::AsynchronousCondition> tensor_received_condition_;
+
+  std::array<uint8_t, sizeof(ucxx::TensorHeader)> header_buffer_;  // Header buffer (CPU)
+  std::shared_ptr<nvidia::byte> tensor_buffer_;    // Tensor data buffer (GPU or Host)
+  std::shared_ptr<ucxx::Request> header_request_;  // Header request
+  std::shared_ptr<ucxx::Request> tensor_request_;  // Tensor data request
 };
 
 }  // namespace holoscan::ops

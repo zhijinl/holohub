@@ -67,20 +67,29 @@ void UcxxSenderOp::compute(holoscan::InputContext& input, holoscan::OutputContex
 
   // Always clean up completed requests (even when disconnected).
   for (auto it = requests_.begin(); it != requests_.end();) {
-    if (!it->request || !it->request->isCompleted()) {
+    // Check if both header and data requests are completed
+    bool header_done = !it->header_request || it->header_request->isCompleted();
+    bool data_done = !it->data_request || it->data_request->isCompleted();
+    if (!header_done || !data_done) {
       ++it;
       continue;
     }
-    if (ucs_status_t status = it->request->getStatus(); status != UCS_OK) {
-      // Connection reset is expected when the subscriber disconnects/restarts.
-      if (status == UCS_ERR_CONNECTION_RESET || status == UCS_ERR_NOT_CONNECTED ||
-          status == UCS_ERR_UNREACHABLE || status == UCS_ERR_CANCELED) {
-        HOLOSCAN_LOG_WARN("Send failed (likely disconnect/reconnect) with status: {}",
-                          ucs_status_string(status));
-      } else {
-        HOLOSCAN_LOG_ERROR("Send failed with status: {}", ucs_status_string(status));
+
+    // Check status of both requests
+    auto check_status = [](const std::shared_ptr<ucxx::Request>& req, const char* name) {
+      if (!req) return;
+      if (ucs_status_t status = req->getStatus(); status != UCS_OK) {
+        if (status == UCS_ERR_CONNECTION_RESET || status == UCS_ERR_NOT_CONNECTED ||
+            status == UCS_ERR_UNREACHABLE || status == UCS_ERR_CANCELED) {
+          HOLOSCAN_LOG_WARN("{} send failed (likely disconnect/reconnect) with status: {}",
+                            name, ucs_status_string(status));
+        } else {
+          HOLOSCAN_LOG_ERROR("{} send failed with status: {}", name, ucs_status_string(status));
+        }
       }
-    }
+    };
+    check_status(it->header_request, "Header");
+    check_status(it->data_request, "Data");
     it = requests_.erase(it);
   }
 
@@ -130,27 +139,21 @@ void UcxxSenderOp::compute(holoscan::InputContext& input, holoscan::OutputContex
     gxf_tensor_ptr = maybe_gxf_tensor.value().get();
   }
 
-  // Calculate required buffer size for serialization
+  // Create a send request for two-phase transfer
+  SendRequest& send = requests_.emplace_back();
+
+  // Build header from tensor metadata (no data copy)
+  send.header = holoscan::ops::ucxx::buildTensorHeader(*gxf_tensor_ptr);
+
+  // Phase 1: Send header (CPU) - runs in parallel with phase 2
+  send.header_request = ucxx_endpoint->tagSend(
+      &send.header, sizeof(holoscan::ops::ucxx::TensorHeader), ::ucxx::Tag{tag_.get()});
+
+  // Phase 2: Send tensor data (GPU or CPU pointer, UCX handles both)
   const size_t tensor_size =
       gxf_tensor_ptr->element_count() * gxf_tensor_ptr->bytes_per_element();
-  const size_t buffer_size = sizeof(holoscan::ops::ucxx::TensorHeader) + tensor_size;
-
-  // Create a send request with pre-allocated buffer
-  SendRequest& send = requests_.emplace_back();
-  send.buffer.resize(buffer_size);
-
-  // Serialize the tensor into the buffer
-  auto result = holoscan::ops::ucxx::serializeTensor(
-      *gxf_tensor_ptr, send.buffer.data(), send.buffer.size(), allocator_.get().get());
-  if (!result.has_value()) {
-    HOLOSCAN_LOG_ERROR("Failed to serialize tensor: {}", result.error().what());
-    requests_.pop_back();
-    return;
-  }
-
-  // Send the serialized tensor buffer
-  send.request =
-      ucxx_endpoint->tagSend(send.buffer.data(), result.value(), ::ucxx::Tag{tag_.get()});
+  send.data_request = ucxx_endpoint->tagSend(
+      gxf_tensor_ptr->pointer(), tensor_size, ::ucxx::Tag{tag_.get()});
 }
 
 }  // namespace holoscan::ops
