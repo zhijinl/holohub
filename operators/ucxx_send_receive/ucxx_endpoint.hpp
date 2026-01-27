@@ -21,6 +21,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "holoscan/holoscan.hpp"
@@ -53,7 +54,6 @@ class UcxxEndpoint : public holoscan::Resource {
   void add_close_callback(std::function<void(ucs_status_t)> callback);
 
  private:
-  void on_connection_request(ucp_conn_request_h conn_request);
   void on_endpoint_closed(ucs_status_t status);
 
   holoscan::Parameter<std::string> hostname_;
@@ -66,6 +66,10 @@ class UcxxEndpoint : public holoscan::Resource {
   std::shared_ptr<::ucxx::Endpoint> endpoint_{nullptr};
 
   std::shared_ptr<holoscan::AsynchronousCondition> is_alive_condition_;
+
+  std::atomic<bool> stop_listen_{false};
+  int listen_fd_{-1};
+  std::thread listen_thread_;
 
   mutable std::mutex close_callbacks_mutex_;
   std::vector<std::function<void(ucs_status_t)>> close_callbacks_;
